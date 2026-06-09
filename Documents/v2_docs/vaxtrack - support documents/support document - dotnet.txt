@@ -1,0 +1,21 @@
+dotnet new webapi -n VaxTrack
+cd VaxTrack
+
+dotnet build
+dotnet run
+dotnet watch run
+
+dotnet tool install --global dotnet-ef
+dotnet ef
+
+dotnet add package Microsoft.EntityFrameworkCore.SqlServer
+dotnet add package Microsoft.EntityFrameworkCore.Design
+
+
+Check and apply first migration
+    dotnet ef migrations add InitialCreate
+    dotnet ef database update
+
+
+Check migrations applied
+    dotnet ef migrations list

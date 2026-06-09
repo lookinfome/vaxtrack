@@ -1,0 +1,14 @@
+info:
+  name: delete hospital
+  type: http
+
+http:
+  method: DELETE
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/deletehospital/Rub_ccbdbdcc"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

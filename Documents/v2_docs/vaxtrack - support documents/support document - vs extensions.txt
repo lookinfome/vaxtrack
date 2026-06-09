@@ -1,0 +1,28 @@
+
+C# extensions
+    C#
+    C# Dev Kit
+    IntelliCode for C# Dev Kit -- not used
+
+.Net extensions
+    .Net Install Tool
+
+Other extensions
+    OpenAPI (Swagger) Editor
+    YAML by Red Hat
+    GitLense -- not installed
+
+
+API testing extensions
+    Bruno
+
+Docker command for SQL setup
+
+to create container
+    docker rm -f vaxtrack_sqlserver 2>/dev/null; docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=NewStrong#Pass2026" -p 1433:1433 --name vaxtrack_sqlserver --platform linux/amd64 -v sqlserver_data:/var/opt/mssql -d mcr.microsoft.com/mssql/server:2022-latest
+
+to reset of existing password
+    docker exec -it vaxtrack_sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "NewStrong#Pass2026" -C -Q "ALTER LOGIN sa WITH PASSWORD='Amazon@iam123';"
+
+to verify if the password worked
+    docker exec -it vaxtrack_sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Amazon@iam123" -C -Q "SELECT @@VERSION;"
