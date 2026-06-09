@@ -1,0 +1,24 @@
+info:
+  name: update hospital
+  type: http
+  seq: 1
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/updatehospital"
+  body:
+    type: json
+    data: |-
+      {
+        "hospitalid": "Rub_6085962d",
+        "hospitaladdress": "New Delhi, Delhi, India",
+        "hospitalPhonenumber": "8090453287",
+        "hospitalemail": "rub@gmail.com"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

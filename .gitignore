@@ -1,0 +1,33 @@
+# C# / .NET
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.csproj.user
+
+# Node
+node_modules/
+npm-debug.log
+package-lock.json
+yarn.lock
+
+# IDE
+.vscode/
+.vs/
+*.sln.iml
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+appsettings.Development.json
+
+# Build outputs
+dist/
+build/

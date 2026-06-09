@@ -1,0 +1,15 @@
+info:
+  name: delete user
+  type: http
+  seq: 1
+
+http:
+  method: DELETE
+  url: "{{baseURL}}/api/vaxtrack/v1/user/deleteuser/Tarun-17-df"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

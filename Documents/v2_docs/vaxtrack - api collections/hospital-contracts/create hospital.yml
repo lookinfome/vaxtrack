@@ -1,0 +1,21 @@
+info:
+  name: create hospital
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/createhospital"
+  body:
+    type: json
+    data: |-
+      {
+        "hospitalname": "Sunrise City Hospital"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

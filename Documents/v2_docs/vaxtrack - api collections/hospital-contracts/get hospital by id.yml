@@ -1,0 +1,14 @@
+info:
+  name: get hospital by id
+  type: http
+
+http:
+  method: GET
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/gethospitalbyid/Rub_6085962d"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

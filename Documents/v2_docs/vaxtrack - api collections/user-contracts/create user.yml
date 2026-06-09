@@ -1,0 +1,25 @@
+info:
+  name: create user
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseURL}}/api/vaxtrack/v1/user/createuser"
+  body:
+    type: json
+    data: |-
+      {
+        "firstName": "Tarun",
+        "lastName": "Mehta",
+        "userBirthdate": "1989-01-09",
+        "userGender": "Male",
+        "userPhone": "8754153429"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

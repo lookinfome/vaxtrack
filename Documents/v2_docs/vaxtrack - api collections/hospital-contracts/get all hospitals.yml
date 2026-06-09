@@ -1,0 +1,14 @@
+info:
+  name: get all hospitals
+  type: http
+
+http:
+  method: GET
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/getallhospitals"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

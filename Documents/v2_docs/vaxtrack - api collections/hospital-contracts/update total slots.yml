@@ -1,0 +1,15 @@
+info:
+  name: update total slots
+  type: http
+  seq: 1
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/updatetotalslots/Rub_ccbdbdcc/100"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
