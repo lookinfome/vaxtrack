@@ -1,0 +1,543 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+  margin-bottom: 60px;
+  background-color: #2A3335 !important;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: center;
+  font-family: 'Geist Mono', monospace !important;
+  font-optical-sizing: auto;
+  font-style: normal;
+}
+
+/* navbar */
+.app-name {
+  color: white;
+}
+
+.app-version {
+  color:aqua;
+  font-size: 15px;
+  font-weight: 500;
+  text-shadow: 0px 1px 10px lightcyan;
+}
+
+.logout-submit {
+  background-color: transparent;
+  color: white;
+  border: none;
+  margin-top: 7px;
+}
+
+/* page: home */
+
+.home-title-content, .home-body-content {
+  color: white;
+}
+
+.home-body-content p {
+  font-size: 20px;
+  width: 50%;
+  margin: 0px auto 0px auto;
+}
+
+.home-btn-signin, .home-btn-signup {
+  border: none;
+  color: white;
+  padding: 10px;
+  font-size: 20px;
+  background: none;
+  position: relative;
+  transition: color 0.5s ease-in-out;
+}
+
+.home-btn-signin:hover {
+  color: #9BEC00;
+}
+
+.home-btn-signup:hover {
+  color: #FFEA20;
+}
+
+/* page: login partial */
+.login-title-content, .login-body-content {
+  color: #9BEC00;
+  font-weight: 450;
+}
+
+.login-action-content {
+  color: #B9FFF8;
+}
+
+.login-input:focus {
+  border-color: #9BEC00;
+  box-shadow: 0px 1px 10px #9BEC00;
+  outline: none;
+}
+
+.login-submit {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid gray;
+  background-color: gray;
+  transition: 0.5s ease-in-out;
+}
+
+.login-submit:hover {
+  border: 1px solid lime;
+  background-color: lime;
+  box-shadow: 0px 1px 10px lime;
+}
+
+.icon-wink {
+  text-shadow: 0px 0px 10px #9BEC00;
+}
+
+/* page: register partial */
+.register-title-content, .register-body-content {
+  color: #FFD369;
+  font-weight: 450;
+}
+
+.register-action-content {
+  color: #B9FFF8;
+}
+
+.register-input:focus {
+  border-color: #FFD369;
+  box-shadow: 0px 1px 10px #FFD369;
+  outline: none;
+}
+
+.register-submit {
+  width: 50%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid gray;
+  background-color: gray;
+  transition: 0.5s ease-in-out;
+}
+
+.register-submit:hover {
+  border: 1px solid yellow;
+  background-color: yellow;
+  box-shadow: 0px 1px 10px yellow;
+}
+
+.icon-handshake {
+  text-shadow: 0px 1px 10px #FFD369;
+}
+
+/* page: reset password partial */
+#reset-password-link {
+  border: none;
+  color: #FFFFFF;
+  background-color: transparent;
+  transition: 0.5s ease-in-out;
+}
+
+#reset-password-link:hover {
+  color: #97FEED;
+}
+
+.reset-password-input:focus {
+  border-color: #97FEED;
+  box-shadow: 0px 1px 10px #97FEED;
+  outline: none;
+}
+
+.reset-password-content, .reset-password-body-content {
+  color: #97FEED;
+  font-weight: 450;
+}
+
+.reset-password-submit {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid gray;
+  background-color: gray;
+  transition: 0.5s ease-in-out;
+}
+
+.reset-password-submit:hover {
+  border: 1px solid #97FEED;
+  background-color: #97FEED;
+  box-shadow: 0px 1px 10px #97FEED;
+}
+
+.icon-sync {
+  text-shadow: 0px 1px 10px #97FEED;
+}
+
+/* form inputs: login, register, slot book */
+.login-input,
+.register-input,
+.reset-password-input,
+.book-form-input,
+.user-edit-profile-input {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid gainsboro;
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+/* page: user profile */
+.user-details-identity h3,
+.user-details-personal h5,
+.user-details-vaccination h5,
+.user-details-booking h5 {
+  color: #E6E9AF;
+}
+
+.user-profile-img {
+  margin-top: -10px;
+  border-radius: 50%;
+}
+
+.user-edit-profile-button {
+  border: none;
+  padding: 10px;
+  color: black;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: 0.5s ease-in-out;
+  background-color: #FFD369;
+}
+
+.user-edit-profile-button:hover {
+  color: black;
+  background-color: #FFD369;
+  box-shadow: 0px 1px 10px #FFD369;
+}
+
+.slot-book-submit {
+  padding: 10px;
+  color: black;
+  border-radius: 10px;
+  border: none;
+  background-color: aquamarine;
+  transition: 0.5s ease-in-out;
+}
+
+.slot-book-submit:hover {
+  color: black;
+  background-color: aqua;
+  border: none;
+  box-shadow: 0px 1px 10px aquamarine;
+}
+
+#update-userbirthdate-value {
+  border: none;
+  padding: 0px;
+  color: white;
+  border-radius: 0px;
+  border-bottom: 1px solid white;
+  background-color: transparent;
+}
+
+#update-userphone-value {
+  border: none;
+  padding: 0px;
+  width: 100px;
+  color: white;
+  border-radius: 0px;
+  border-bottom: 1px solid white;
+  background-color: transparent;
+}
+
+#userphone-enable-edit, 
+#update-userphone-submit,
+#userphone-disable-edit,
+#userbirthdate-enable-edit,
+#update-userbirthdate-submit,
+#userbirthdate-disable-edit {
+  border: none;
+  color: #D7D3BF;
+  transition: 0.5s ease-in-out;
+  background-color: transparent;
+}
+
+#user-profile-enable-edit {
+  border: none;
+  color: #0E185F;
+  border-radius: 10px;
+  background-color: rgba(215, 211, 191, 0.6);
+}
+
+#update-userphone-submit:hover,
+#update-userbirthdate-submit:hover {
+  color: #9BEC00;
+  text-shadow: 0px 0px 2px #9BEC00;
+}
+
+#userphone-disable-edit:hover,
+#userbirthdate-disable-edit:hover {
+  color: #F72C5B;
+  text-shadow: 0px 0px 2px #F72C5B;
+}
+
+/* modal: slot book */
+#dose1Book .modal-content, #dose2Book .modal-content {
+  background-color: #3C3D37 !important;
+}
+
+#dose1Book, #dose2Book {
+  color: aqua;
+}
+
+.book-form-input:hover, .book-form-input:focus {
+  border-color: cyan;
+  box-shadow: 0px 1px 10px cyan;
+  outline: none;
+}
+
+.book-form-submit {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid gray;
+  background-color: gray;
+  transition: 0.5s ease-in-out;
+}
+
+.book-form-submit:hover {
+  border: 1px solid aquamarine;
+  background-color: aqua;
+  box-shadow: 0px 1px 10px aqua;
+}
+
+
+/* not in use right now */
+.icon-clock, .icon-camp {
+  color: cyan;
+  border-radius: 50%;
+  text-shadow: 0px 1px 10px cyan;
+}
+
+.icon-edit {
+  color: gold;
+  text-shadow: 0px 1px 10px gold;
+}
+
+.action-link {
+  color: white;
+}
+
+.action-link a {
+  text-decoration: none;
+}
+
+.validation-msg {
+  color: red;
+}
+
+/* page: admin v2 dashboard */
+
+.icon-jet, .icon-analytics {
+  color: sandybrown;
+  rotate: -45deg;
+  margin-left: 5px;
+  text-shadow: 0px 1px 10px orange;
+}
+
+.admin-dash {
+  color: white;
+}
+
+.admin-desc-content {
+  text-align: center;
+  padding: 5px 0px 5px 0px;
+  border-top: 2px solid orange;
+  border-bottom: 2px solid orange;
+}
+
+.admin-status-page-desc h5 {
+  width: fit-content;
+  padding: 5px 0px 5px 0px;
+  border-top: 2px solid orange;
+  border-bottom: 1px solid orange;
+}
+
+.admin-users-list-pending-approval table {
+  background-color: #A8CD89;
+}
+
+.admin-users-list-pending-approval table thead {
+  color: #FBF8EF;
+  background-color: #355F2E;
+}
+
+.admin-hospitals-list-slot-update table {
+  background-color: #B1F0F7;
+}
+
+.admin-hospitals-list-slot-update table thead {
+  color: #FBF8EF;
+  background-color: #0A5EB0;
+}
+
+.admin-status-slot-booking, 
+.admin-status-users-gender, 
+.admin-status-users-vaccination {
+  color: white;
+}
+
+/* page: support */
+.support-new-ticket .title, .support-tickets-list .title, .support-ticket-view-block .title {
+  color: #FFE6A9;
+  margin-bottom: 10px;
+  width: max-content;
+  border-bottom: 1px dashed #FFE6A9;
+}
+
+.support-new-ticket .form {
+  color: #FFE6A9;
+}
+
+.support-new-ticket .form-input {
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.support-new-ticket .form-submit {
+  border: none;
+  padding: 15px;
+  border-radius: 10px;
+  background-color: #E3F0AF;
+  transition: 0.5s ease-in-out;
+}
+
+.support-new-ticket .form-submit:hover {
+  border: none;
+  box-shadow: 0px 0px 5px #E1FFBB;
+  background-color: #FADA7A;
+}
+
+.icon-ticket {
+  color: #FFE6A9;
+  rotate: -45deg;
+}
+
+.icon-receipt {
+  color: #FFE6A9;
+  rotate: 45deg;
+}
+
+.raised-ticket .header{
+  background-color: #1F509A;
+}
+
+.raised-ticket .body{
+  padding: 5px;
+  font-size: 12px;
+  color: #000000;
+  background-color: #D7D3BF;
+}
+
+.raised-ticket .body .body-btn {
+  border: none;
+  border-radius: 10px;
+  background-color: #A8CD89;
+  transition: 0.5s ease-in-out;
+
+}
+
+.raised-ticket .body .body-btn:hover {
+  background-color: #5DB996;
+}
+
+.support-ticket-view, 
+.support-ticket-list-empty,
+.support-manager-ticket-view,
+.support-manager-tickets-empty {
+  background-color: #3C3D37;
+}
+
+.ticket-view {
+  height: 100%;
+  padding: 20px;
+  color: #E1D7C6;
+  border: 1px dashed #E1D7C6;
+}
+
+.comments {
+  font-size: 12px;
+}
+
+#SupportCommentForm input, #SupportCommentAdminForm input {
+  border: none;
+  font-size: 12px;
+  color: #D7D3BF;
+  border-bottom: 1px solid #FBF8EF;
+  background-color: transparent;
+}
+
+#SupportCommentForm button, #SupportCommentAdminForm button, .comment-delete {
+  border: none;
+  font-size: 12px;
+  border-radius: 10px;
+  background-color: wheat;
+  transition: 0.5s ease-in-out;
+}
+
+#SupportCommentForm button:hover, #SupportCommentAdminForm button:hover, .comment-delete:hover {
+  background-color: tan;
+}
+
+#SupportCommentForm input:focus #SupportCommentAdminForm button:focus {
+  outline:none;
+}
+
+/* page: support manager partial */
+.support-total-ticket-count {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #97FEED;
+  transition: 0.5s ease-in-out;
+}
+
+.support-total-ticket-count:hover {
+  color: #000000;
+  box-shadow: 0px 0px 15px #5DB996;
+  background-color: #97FEED;
+}
+
+.icon-invoice {
+  color: #FFE6A9;
+} 
+
+/* toast: alert messages */
+#welcomeMessage, #userProfileUpdateSuccessMsg, #adminWelcomeMessage {
+  color: #52734D;
+}
+
+#userProfileUpdateErrorMsg {
+  color: #0E185F;
+}
+
+#bookingStatusMsg {
+  color: #0E185F;
+}
+
+

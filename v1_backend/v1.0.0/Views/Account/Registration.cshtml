@@ -1,0 +1,145 @@
+@model UserDetailsModel
+
+@{
+    var currMonthYear = DateTime.Now.ToString("yyyy-MM-dd");
+}
+
+<div class="container mt-5">
+
+    <div class="row justify-content-center">
+        <div class="col col-lg-4 col-md-6 col-sm-12 registration-form">
+
+            @* head *@
+            <div class="text-center mt-4">
+                <h1> REGISTRATION </h1>
+            </div>
+
+            @* registration form *@
+            @using(Html.BeginForm("Registration", "Account", FormMethod.Post))
+            {
+                @* name *@
+                <div class="">
+                    @Html.TextBoxFor(model => model.Name, new { @style="width:100%;", @class = "mt-4 registration-form-input", placeholder = "Full Name" })
+                    @Html.ValidationMessageFor(model => model.Name, null, new { @class = "mx-2 registration-form-validation-msg" }, null)
+                </div>
+
+                @* uid *@
+                <div class="">
+                    @Html.TextBoxFor(model => model.Uid, new { @style="width:100%;", @class = "mt-4 registration-form-input", placeholder = "Unique Aadhar Number" })
+                    @Html.ValidationMessageFor(model => model.Uid, null, new { @class = "mx-2 registration-form-validation-msg" }, null)
+                </div>
+
+                @* phone *@
+                <div class="">
+                    @Html.TextBoxFor(model => model.Phone, new { @style="width:100%;", @class = "mt-4 registration-form-input", placeholder = "Phone Number" })
+                    @Html.ValidationMessageFor(model => model.Phone, null, new { @class = "mx-2 registration-form-validation-msg" }, null)
+                </div>
+
+                @* gender *@
+                <div class="">
+                    @Html.RadioButtonFor(model => model.Gender, "M", new { @class = "mt-4" }) Male
+                    @Html.RadioButtonFor(model => model.Gender, "F", new { @class = "mt-4 mx-2" }) Female
+                    @Html.RadioButtonFor(model => model.Gender, "O", new { @class = "mt-4 mx-2" }) Other
+                    @Html.ValidationMessageFor(model => model.Gender, null, new { @class = "mx-2 registration-form-validation-msg" }, null)
+                </div>
+
+                @* password *@
+                <div class="">
+                    @Html.PasswordFor(model => model.Password, new { @style="width:100%;", @class = "mt-4 registration-form-input", placeholder = "Password", id = "Password" })
+                    <span id="passwordStrength" class="mx-2 registration-form-validation-msg"></span>
+                    @Html.ValidationMessageFor(model => model.Password, null, new { @class = "mx-2 registration-form-validation-msg" }, null)
+                </div>
+
+                @* confirm password *@
+                <div class="">
+                    @Html.PasswordFor(model => model.ConfirmPassword, new { @style="width:100%;", @class = "mt-4 registration-form-input", placeholder = "Confirm Password" })
+                    @Html.ValidationMessageFor(model => model.ConfirmPassword, null, new { @class = "mx-2 registration-form-validation-msg" }, null)
+                </div>
+                
+                @* birthdate *@
+                <div class="">
+                    @Html.LabelFor(model=>model.Birthdate,"Date of Birth", new {@style="color:gray", @class="mt-4"})
+                    @Html.TextBoxFor(model => model.Birthdate, new { @style="width:100%;", type = "date", max = currMonthYear, @class = "registration-form-input", placeholder = "mm/dd/yyyy" })
+                    @Html.ValidationMessageFor(model => model.Birthdate, null, new { @class = "mx-2 registration-form-validation-msg" }, null)
+                </div>
+
+                @* submit *@
+                <div class="text-left">
+                    <input type="submit" class="mt-4 registration-form-submit" value="Sign Up" />
+                </div>
+            }
+
+            @* action buttons *@
+            <div class="text-left mt-1 mb-4">
+                Or already registered, <a href="@Url.Action("Login", "Account")">Sign In</a>.
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+
+@section Scripts {
+    <script>
+        document.getElementById('Password').addEventListener('input', function () {
+            var password = this.value;
+            var strengthLabel = document.getElementById('passwordStrength');
+            var strength = getPasswordStrength(password);
+            strengthLabel.textContent = strength;
+            strengthLabel.style.color = getStrengthColor(strength);
+            
+        });
+
+        function getPasswordStrength(password) {
+            var strength = "Weak";
+            var regexes = [
+                /[A-Z]/, // Uppercase
+                /[0-9]/, // Digit
+                /[^A-Za-z0-9]/, // Non-alphanumeric
+                /.{6,}/ // At least 6 characters
+            ];
+
+            var passedTests = regexes.reduce((acc, regex) => acc + regex.test(password), 0);
+
+            switch (passedTests) {
+                case 4:
+                    strength = "Highly Strong";
+                    break;
+                case 3:
+                    strength = "Strong";
+                    break;
+                case 2:
+                    strength = "Moderate";
+                    break;
+                default:
+                    strength = "Weak";
+            }
+
+            return strength;
+        }
+
+        function getStrengthColor(strength) {
+            switch (strength) {
+                case "Highly Strong":
+                    return "darkgreen";
+                case "Strong":
+                    return "lightgreen";
+                case "Moderate":
+                    return "orange";
+                case "Weak":
+                default:
+                    return "red";
+            }
+        }
+
+        document.getElementById('registrationForm').addEventListener('submit', function (e) {
+            var password = document.getElementById('Password').value;
+            var confirmPassword = document.getElementById('ConfirmPassword').value;
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('Passwords do not match.');
+            }
+        });
+    </script>
+}

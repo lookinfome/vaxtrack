@@ -1,0 +1,305 @@
+@{
+    @* var completedVaccination= ViewBag.TotalVaccinationCount;
+    var approvalPending = ViewBag.UserCountWithPendingApproval;
+    var yetToBookSlots = ViewBag.UsersCountWithNoBooking; *@
+}
+
+<div class="container mt-5">
+
+    @if(ViewBag.LoginMessage != null)
+    {
+        <div class="alert alert-success" role="alert">
+            @ViewBag.LoginMessage
+        </div>
+    }
+
+    @* header row *@
+    <div class="row">
+        <h1> Admin Dashboard </h1>
+    </div>
+
+    <hr style="color:black;">
+
+    @* portal status & user list: yet to register *@
+    <div class="row d-flex justify-content-between mt-3">
+        
+
+        @* portal status *@
+        <div class="col col-lg-6 col-md-4 col-sm-12">
+            <h3 style="color: gray;">Portal Stats</h3>
+
+            <div style="width: 400px; height: 250px;">
+                <canvas id="myDoughnutChart" style="height: 100%; width: 100%;"></canvas>
+            </div>
+
+            <h5><span style="color: gray;">Total Users:</span> <b> @ViewBag.TotalUsersCount </b></h5>
+        </div>
+
+        @* registered users without slots *@
+        <div class="col col-lg-6 col-md-4 col-sm-12">
+            
+            @* head *@
+            <h3 style="color: gray;">Registered Users: Yet To Book Slots</h3>
+
+            @* table *@
+            <div style="overflow-y:auto;">
+                <table class="table table-info table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Username</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach(var rec in ViewBag.UserListWithoutSlot)
+                        {
+                            <tr>
+                                <td>@rec.Name</td>
+                                <td>@rec.Username</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <hr style="color:silver;">
+
+    @* registered users with pending approvals *@
+    <div class="row mt-5">
+
+        @* head *@
+        <h3 style="color: gray;">Registered Users: With Booking Details</h3>
+        
+        @* filter *@
+        <form class="mt-4 admin-form">
+            <label for="filterUserVaccinationDetails">Filter by Vaccination Status:</label>
+            <select style="padding: 5px; border:10px; border: 1px solid lightgray;" id="filterUserVaccinationDetails" name="filter">
+                <option value="">All</option>
+                <option value="Vaccinated">Vaccinated</option>
+                <option value="Not Vaccinated">Not Vaccinated</option>
+            </select>
+        </form>
+
+        @* table *@
+        <div class="col col-lg-12 col-md-12 col-sm-12 mt-3" style="overflow-y: auto;">
+            <table style="" class="table table-dark table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>BookingID</th>
+                        <th>Dose1Date</th>
+                        <th>Dose2Date</th>
+                        <th>VaccinationStatus</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    @if(ViewBag.AdminViewDetails.Count > 0)
+                    {
+                        @foreach (var record in ViewBag.AdminViewDetails)
+                        {
+                            <tr>
+                                <td>@record.Name</td>
+                                <td>@record.Username</td>
+                                <td>@record.BookingId</td>
+                                <td>@record.Dose1Date <br> (<b>@record.D1HospitalName</b>)</td>
+                                <td>@record.Dose2Date <br> (<b>@record.D1HospitalName</b>)</td>
+                                <td>@record.VaccinationStatus</td>
+                                <td>
+                                    @if (record.VaccinationStatus == "Vaccinated")
+                                    {
+                                        <button class="btn btn-sm btn-success disabled">Approved</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="approveButton btn btn-sm btn-danger" data-username="@record.Username" data-bookingid="@record.BookingId">Approve</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6">
+                                <h5> No records found </h5>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <hr style="color:silver;">
+
+    @* hospital details with available slots *@
+    <div class="row mt-5">
+        
+        @* head *@
+        <h3 style="color: gray">Hospial Details: With Available Slots</h3>
+        
+        @* filter *@
+        <form class="mt-4 admin-form">
+            <label for="filterHospitalDetails">Filter Hospital Details:</label>
+            <select style="padding: 5px; border:10px; border: 1px solid lightgray;" id="filterHospitalDetails" name="filterHospital">
+                <option value="">All</option>
+                <option value="0">less than 1</option>
+                <option value="1">less than 2</option>
+                <option value="2">less than 3</option>
+                <option value="3">less than 4</option>
+                <option value="4">less than 5</option>
+                <option value="5">less than 6</option>
+            </select>
+        </form>
+
+        @* table *@
+        <div class="col mt-3" style="overflow-y: auto;">
+            <table class="table table-warning table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Hospital ID</th>
+                        <th>Hospital Name</th>
+                        <th>Slots Available</th>
+                        <th>Increase Slots</th>
+                    </tr>
+                </thead>
+                <tbody id="adminHospitalDetails">
+                    @foreach(var record in ViewBag.HospitalDetails)
+                    {
+                        <tr>
+                            <td>@record.HospitalId</td>
+                            <td>@record.HospitalName</td>
+                            <td>@record.SlotsAvailable</td>
+                            <td>
+                                <input type="number" id="increaseSlots_@record.HospitalId" class="slot-update-input" />
+                                <button type="button" id="increaseSlots" onclick="increaseSlots(@record.HospitalId)" class="slot-update-btn">Increase</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+@section Scripts
+{
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+    <script>
+
+        $(document).ready(function() {
+
+            @* method: filter user vaccination details table *@
+            $('#filterUserVaccinationDetails').change(function() {
+                var filterValue = $(this).val();
+                $.ajax({
+                    url: '@Url.Action("FilterUsers", "Admin")',
+                    type: 'GET',
+                    data: { filter: filterValue },
+                    success: function(data) {
+                        $('#userTableBody').html(data);
+                    },
+                    error: function() {
+                        $('#adminErrorMsgPage').html("An error occurred while filtering.");
+                    }
+                });
+            });
+
+            @* method: approve booked slots *@
+            $(document).on('click', '.approveButton', function() {
+                var username = $(this).data('username');
+                var bookingId = $(this).data('bookingid');
+                $.ajax({
+                    url: '@Url.Action("ApproveSlotBook", "Admin")',
+                    type: 'POST',
+                    data: { username: username, bookingId: bookingId },
+                    success: function(data) {
+                        $('#userTableBody').html(data);
+                    },
+                    error: function(response) {
+                        alert("Error");
+                    }
+                });
+            });
+
+            @* method: display hospital details *@
+            $('#filterHospitalDetails').change(function(){
+                var filterValue = $(this).val();
+                $.ajax({
+                    url: '@Url.Action("FilterHospitals", "Admin")',
+                    type: 'GET',
+                    data: {filter: filterValue},
+                    success: function(data) {
+                        $('#adminHospitalDetails').html(data);
+                    },
+                    error: function() {
+                        $('#adminHospitalDetails').html("An error occurred while filtering.");
+                    }
+                });
+            });
+
+
+        });
+
+        @* method: increase slots *@
+        $(document).on('click', '#increaseSlots', function() {
+                var hospitalId = "H"+$(this).attr('onclick').match(/\d+/)[0];
+                var increaseValue = $('#increaseSlots_' + hospitalId).val();
+                $.ajax({
+                    url: '@Url.Action("IncreaseSlots", "Admin")',
+                    type: 'GET',
+                    data: { hospitalId: hospitalId, increaseBy: increaseValue },
+                    success: function(data) {
+                        $('#adminHospitalDetails').html(data);
+                    },
+                    error: function() {
+                        alert("An error occurred while increasing slots.");
+                    }
+                });
+            });
+
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        var completedVaccination= @ViewBag.TotalVaccinationCount;
+        var approvalPending = @ViewBag.UserCountWithPendingApproval;
+        var yetToBookSlots = @ViewBag.UsersCountWithNoBooking;
+
+
+        var ctx = document.getElementById('myDoughnutChart').getContext('2d');
+        var myDoughnutChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Completed Vaccination', 'Approval Pending', 'Yet to Book Slots'],
+                datasets: [{
+                    data: [completedVaccination, approvalPending, yetToBookSlots],
+                    backgroundColor: ['#36A2EB', '#FFCE56', '#FF6384'],
+                    hoverBackgroundColor: ['#36A2EB', '#FFCE56', '#FF6384']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                title: {
+                    display: true,
+                    text: 'Vaccination Status of Registered Users'
+                }
+            }
+        });
+    </script>
+
+}
