@@ -1,0 +1,119 @@
+@model UserDetailsModel
+
+@{
+    @* format UID *@
+    string Uid = @Model.Uid;
+    string FormattedUid = string.Format("{0}-{1}-{2}-{3}", 
+                                        Uid.Substring(0, 3), 
+                                        Uid.Substring(3, 3), 
+                                        Uid.Substring(6, 3), 
+                                        Uid.Substring(9, 3));
+    
+    string Dose1Date = (DateTime) @ViewData["Dose1Date"]==DateTime.MinValue?"NA":@ViewData["Dose1Date"].ToString();
+    string Dose2Date = (DateTime) @ViewData["Dose2Date"]==DateTime.MinValue?"NA":@ViewData["Dose2Date"].ToString();
+
+}
+
+<div class="container mt-5">
+
+    @if(ViewBag.RegistrationMessage != null)
+    {
+        <div class="alert alert-success" role="alert">
+            @ViewBag.RegistrationMessage
+        </div>
+    }
+
+    else if(ViewBag.LoginMessage != null)
+    {
+        <div class="alert alert-success" role="alert">
+            @ViewBag.LoginMessage
+        </div>
+    }
+
+    <div class="row user-detail-row">
+
+        <div class="col col-lg-12 col-md-12 col-sm-12 user-detail-column">
+
+            @* name and username *@
+            <div class="d-flex justify-content-between">
+                <div> <h3> @Model.Name </h3> </div>
+                <div> 
+                    <p>
+                        <span style="color:gray; font-weight: 600;"> Username: </span>
+                        <span class="mx-2"> <b>@Model.Username</b> </span> 
+                    </p> 
+                </div>
+            </div>
+
+            @* birth date, gender, unique id, phone *@
+            <div class="mt-4 d-flex justify-content-between">
+                <div>
+                    <span style="color:gray; font-weight: 600;"> <i class="fas fa-birthday-cake"></i> Date of Birth <br>  </span>
+                    <b>@Model.Birthdate.Date.ToString("yyyy-MM-dd")</b>
+                </div>
+                <div>
+                    <span style="color:gray; font-weight: 600;"> <i class="fas fa-venus-mars"></i> Gender <br> </span>
+                    @if(Model.Gender == "M") { <span><b>Male</b></span> }
+                    @if(Model.Gender == "F") { <span><b>Female</b></span> }
+                    @if(Model.Gender == "O") { <span><b>Other</b></span> }
+                </div>
+                <div>
+                    <span style="color:gray; font-weight: 600;"> <i class="fas fa-phone"></i> Contact <br> </span>
+                    <b>@Model.Phone</b>
+                </div>
+                <div>
+                    <span style="color:gray; font-weight: 600;"> <i class="fas fa-id-badge"></i> Unique ID <br>  </span>
+                    <b>@FormattedUid</b>
+                </div>
+            </div>
+
+            <hr>
+
+            @* vaccination details *@
+            <div class="d-flex justify-content-between">
+                <div>
+                    <span style="color: gray; font-weight: 600;"> <i class="fas fa-info-circle"></i> Vaccination Status <br> </span>
+                    @if((string)ViewData["VaccinationStatus"] == "Vaccinated")
+                    {
+                        <p style="color:yellowgreen;"> 
+                            <b>@ViewData["VaccinationStatus"] <i class="fas fa-thumbs-up"></i></b>
+                        </p>
+                    }
+                    else
+                    {
+                        <p style="color: tomato;">
+                            <b>@ViewData["VaccinationStatus"] <i class="fas fa-thumbs-down"></i></b>
+                        </p>
+                    }
+                    
+                </div>
+
+                <div>
+                    @* <i class="far fa-calendar-alt"></i> Dose 1 <br> @ViewData["Dose1Date"] *@
+                    <span style="color:gray; font-weight: 600;"> <i class="far fa-calendar-alt"></i> Dose 1 <br>  </span>
+                    <b>@Dose1Date</b>
+                </div>
+
+                <div>
+                    @* <i class="far fa-calendar-alt"></i> Dose 2 <br> @ViewData["Dose2Date"] *@
+                    <span style="color:gray; font-weight: 600;"> <i class="far fa-calendar-alt"></i> Dose 2 <br>  </span>
+                    <b>@Dose2Date</b>
+                </div>
+
+                @* slot book *@
+                <div>
+                    @if(ViewBag.SlotBookButtonEnable)
+                    {
+                        <span class=""><a href="@Url.Action("SlotBook", "Booking", new {username = Model.Username})" class="btn btn-warning">Book Slot</a></span>
+                    }
+                </div>
+
+            </div>
+            
+            
+
+        </div>
+    </div>
+</div>
+
+
