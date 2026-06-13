@@ -18,89 +18,113 @@ namespace Vaxtrack.Services
         {
             ArgumentNullException.ThrowIfNull(createUserRequestDto);
 
-            var newUser = MapNewUserToUserModel(createUserRequestDto);
-            var savedUser = await _userRepository.AddUserAsync(newUser);
-            return MapToCreateUserResponseDto(savedUser);
-        }
+            try
+            {
+                var newUser = MapUserCreateRequestToUserModel(createUserRequestDto);
+                var createdUser = await _userRepository.CreateUserAsync(newUser);
 
+                return MapToCreateUserResponseDto(createdUser);
+            }
+            catch(Exception ex)
+            {
+                throw new Exception($"UserService: CreateUserAsync - {ex}");
+            }
+        }
         public async Task<UpdateUserResponseDto> UpdateUserAsync(UpdateUserRequestDto updateUserRequestDto)
         {
             ArgumentNullException.ThrowIfNull(updateUserRequestDto);
-            if(!await _userRepository.UserExistsAsync(updateUserRequestDto.UserId))
+
+            try
             {
-                throw new ArgumentException($"userservice: updateuser - user with id {updateUserRequestDto.UserId} not found");
+                string userId = updateUserRequestDto.UserId;
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+
+                if(foundUser == null)
+                {
+                    throw new Exception($"UserService: UpdateUserAsync - user {userId} not found!");
+                }
+
+                var mapFoundUser = MapUserUpdateRequestToUserModel(foundUser, updateUserRequestDto);
+                var updatedUser = await _userRepository.UpdateUserAsync(mapFoundUser);
+
+                return MapToUpdateUserResponseDto(updatedUser);
             }
-
-            var foundUser = await _userRepository.GetUserByIdAsync(updateUserRequestDto.UserId);
-            var updatedUser = MapUpdateUserRequestDtoToUserModel(updateUserRequestDto, foundUser!);
-            var savedUser = await _userRepository.UpdateUserAsync(updatedUser);
-            return MapToUpdateUserResponseDto(savedUser);
+            catch(Exception ex)
+            {
+                throw new Exception($"{ex}");
+            }
         }
-
         public async Task<UserProfileDataDto> GetUserProfileDataAsync(string userId)
         {
             ArgumentNullException.ThrowIfNull(userId);
-            if(!await _userRepository.UserExistsAsync(userId))
+
+            try
             {
-                throw new ArgumentException($"userservice: getuserprofiledata - user with id {userId} not found");
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if(foundUser == null)
+                {
+                    throw new Exception($"UserService: GetUserProfileDataAsync - user {userId} not found!");                
+                }
+
+                var mapFoundUser = MapToUserProfileDto(foundUser);
+                return mapFoundUser;
             }
-
-            var foundUser = await _userRepository.GetUserByIdAsync(userId);
-
-            return MapToUserProfileDto(foundUser!);
+            catch(Exception ex)
+            {
+                throw new Exception($"{ex}");
+            }
         }
-
         public async Task<List<UserProfileDataDto>> GetAllUsersAsync()
         {
-            var allUsers = await _userRepository.GetAllUsersAsync();
-
-            ArgumentNullException.ThrowIfNull(allUsers);
-
-            List<UserProfileDataDto> usersList = new List<UserProfileDataDto>();
-            foreach (var user in allUsers)
+            try
             {
-                usersList.Add(MapToUserProfileDto(user));
-            }    
-            return usersList;
+                var foundUsersList = await _userRepository.GetAllUsersDetailAsync();
+                if(foundUsersList == null)
+                {
+                    throw new Exception($"UserService: GetAllUsersAsync - no users found!");
+                }
+
+                List<UserProfileDataDto> usersList = new List<UserProfileDataDto>();
+
+                foreach (var user in foundUsersList)
+                {
+                    usersList.Add(MapToUserProfileDto(user));
+                }
+
+                return usersList;
+            }
+            catch(Exception ex)
+            {
+                throw new Exception($"{ex}");
+            }
+
+
         }
         public async Task DeleteUserAsync(string userId)
         {
             ArgumentNullException.ThrowIfNull(userId);
-            if (!await _userRepository.UserExistsAsync(userId))
+
+            try
             {
-                throw new ArgumentException($"userservice: deleteuser - user with id {userId} not found");
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if(foundUser == null)
+                {
+                    throw new Exception($"UserService: DeleteUserAsync - user {userId} not found!");
+                }
+
+                var mapFoundUser = MapUserUpdateRequestToUserModel(foundUser, null, true);
+                await _userRepository.UpdateUserAsync(mapFoundUser);
+            }
+            catch(Exception ex)
+            {
+                throw new Exception($"{ex}");
             }
 
-            var timestamp = DateTime.UtcNow;
-            await _userRepository.DeleteUserAsync(userId, timestamp, true);
         }
 
         // utitlity methods
 
-        private int CalculateAge(DateTime userBirthdate)
-        {
-            var today = DateTime.Today;
-            var age = today.Year - userBirthdate.Year;
-
-            if (userBirthdate.Date > today.AddYears(-age))
-            {
-                age--;
-            }
-
-            return age;
-        }
-
-        private string GenerateUserId(string firstName)
-        {
-            ArgumentNullException.ThrowIfNull(firstName);
-
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var randomPart = Guid.NewGuid().ToString("N").Substring(0, 6); // 6 characters from a GUID for uniqueness
-            var userId = $"{firstName}-{timestamp.ToString().Substring(0, 2)}-{randomPart.ToString().Substring(0, 2)}";
-            return userId;
-        }
-
-        private UserModel MapNewUserToUserModel(CreateUserRequestDto createUserRequestDto)
+        private UserModel MapUserCreateRequestToUserModel(CreateUserRequestDto createUserRequestDto)
         {
             var timestamp = DateTime.UtcNow;
 
@@ -122,20 +146,32 @@ namespace Vaxtrack.Services
 
             };
         }
-
-        private UserModel MapUpdateUserRequestDtoToUserModel(UpdateUserRequestDto updateUserRequestDto, UserModel existingUser)
+        private UserModel MapUserUpdateRequestToUserModel(UserModel existingUser, UpdateUserRequestDto? updateUserRequestDto = null, bool? isDelete = null)
         {
-            existingUser.UserName = $"{updateUserRequestDto.FirstName} {updateUserRequestDto.LastName}".Trim();
-            existingUser.UserGender = updateUserRequestDto.UserGender;
-            existingUser.UserPhone = updateUserRequestDto.UserPhone;
-            existingUser.ProfilePicturePath = updateUserRequestDto.ProfilePicturePath;
-            existingUser.UserAddress = updateUserRequestDto.UserAddress;
-            existingUser.UserPinCode = updateUserRequestDto.UserPinCode;
-            existingUser.UpdatedAt = DateTime.UtcNow;
+            var timestamp = DateTime.UtcNow;
+
+            // Handle deletion logic
+            if(isDelete != null)
+            {
+                existingUser.DeletedAt = timestamp;
+                existingUser.IsDeleted = isDelete.Value;
+            }
+
+            // Handle update logic (only if updateUserRequestDto is provided)
+            if(updateUserRequestDto != null && isDelete == null)
+            {
+                existingUser.UserName = $"{updateUserRequestDto.FirstName} {updateUserRequestDto.LastName}".Trim();
+                existingUser.UserGender = updateUserRequestDto.UserGender;
+                existingUser.UserPhone = updateUserRequestDto.UserPhone;
+                existingUser.ProfilePicturePath = updateUserRequestDto.ProfilePicturePath;
+                existingUser.UserAddress = updateUserRequestDto.UserAddress;
+                existingUser.UserPinCode = updateUserRequestDto.UserPinCode;
+            }
+
+            existingUser.UpdatedAt = timestamp;
 
             return existingUser;
-        }
-
+        }        
         private CreateUserResponseDto MapToCreateUserResponseDto(UserModel user)
         {
             return new CreateUserResponseDto
@@ -146,7 +182,6 @@ namespace Vaxtrack.Services
                 CreatedAt = user.CreatedAt
             };
         }
-
         private UpdateUserResponseDto MapToUpdateUserResponseDto(UserModel user)
         {
             return new UpdateUserResponseDto
@@ -162,7 +197,6 @@ namespace Vaxtrack.Services
                 UpdatedAt = user.UpdatedAt
             };
         }
-
         private UserProfileDataDto MapToUserProfileDto(UserModel user)
         {
             return new UserProfileDataDto
@@ -181,5 +215,25 @@ namespace Vaxtrack.Services
                 UpdatedAt = user.UpdatedAt
             };
         }
+        private int CalculateAge(DateTime userBirthdate)
+        {
+            var today = DateTime.Today;
+            var age = today.Year - userBirthdate.Year;
+
+            if (userBirthdate.Date > today.AddYears(-age))
+            {
+                age--;
+            }
+
+            return age;
+        }
+        private string GenerateUserId(string firstName)
+        {
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var randomPart = Guid.NewGuid().ToString("N").Substring(0, 6); // 6 characters from a GUID for uniqueness
+            var userId = $"{firstName}-{timestamp.ToString().Substring(0, 2)}-{randomPart.ToString().Substring(0, 2)}";
+            return userId;
+        }
+
     }
 }

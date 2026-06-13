@@ -14,82 +14,69 @@ namespace Vaxtrack.Repositories
             _dbContext = dbContext;
         }
 
-        public async Task<HospitalModel> AddHospitalAsync(HospitalModel hospitalDetails)
+        public async Task<HospitalModel> CreateHospitalAsync(HospitalModel hospitalCreateRequest)
         {
-            _dbContext.Hospitals.Add(hospitalDetails);
+            ArgumentNullException.ThrowIfNull(hospitalCreateRequest);
+
+            _dbContext.Hospitals.Add(hospitalCreateRequest);
             await _dbContext.SaveChangesAsync();
-            return hospitalDetails;
+            return hospitalCreateRequest;
         }
 
-        public async Task<HospitalModel> UpdateHospitalAsync(HospitalModel hospitalDetails)
+        public async Task<HospitalModel> UpdateHospitalAsync(HospitalModel hospitalUpdateRequest)
         {
-            var foundHospital = await GetHospitalByIdAsync(hospitalDetails.HospitalId);
+            ArgumentNullException.ThrowIfNull(hospitalUpdateRequest);
 
-            // Update the hospital properties
-            foundHospital?.HospitalName = hospitalDetails.HospitalName;
-            foundHospital?.HospitalAddress = hospitalDetails.HospitalAddress;
-            foundHospital?.HospitalPhoneNumber = hospitalDetails.HospitalPhoneNumber;
-            foundHospital?.HospitalEmail = hospitalDetails.HospitalEmail;
-            foundHospital?.UpdatedDate = hospitalDetails.UpdatedDate;
-
-            _dbContext.Hospitals.Update(foundHospital!);
+            _dbContext.Hospitals.Update(hospitalUpdateRequest);
             await _dbContext.SaveChangesAsync();
-            return foundHospital!;
+            return hospitalUpdateRequest;
         }
 
-        public async Task<HospitalModel> GetHospitalByIdAsync(string hospitalId)
+        public async Task<HospitalModel> UpdateAvailableSlotsAsync(HospitalModel hospitalAvailableSlotsUpdateRequest)
         {
-            var foundHospital = await _dbContext.Hospitals.FindAsync(hospitalId);
-            if (foundHospital == null)
-            {
-                throw new ArgumentException("Hospital not found");
-            }
+            ArgumentNullException.ThrowIfNull(hospitalAvailableSlotsUpdateRequest);
 
+            _dbContext.Hospitals.Update(hospitalAvailableSlotsUpdateRequest);
+            await _dbContext.SaveChangesAsync();
+            return hospitalAvailableSlotsUpdateRequest;
+        }
+
+        public async Task<HospitalModel> UpdateTotalSlotsAsync(HospitalModel hospitalTotalSlotsUpdateRequest)
+        {
+            ArgumentNullException.ThrowIfNull(hospitalTotalSlotsUpdateRequest);
+
+            _dbContext.Hospitals.Update(hospitalTotalSlotsUpdateRequest);
+            await _dbContext.SaveChangesAsync();
+            return hospitalTotalSlotsUpdateRequest;
+        }
+
+        public async Task<HospitalModel?> GetHospitalByIdAsync(string hospitalId)
+        {
+            ArgumentNullException.ThrowIfNull(hospitalId);
+
+            var foundHospital = await _dbContext.Hospitals.Where(h=>h.HospitalId == hospitalId && !h.IsDeleted).FirstOrDefaultAsync();
             return foundHospital;
         }
 
-        public async Task<List<HospitalModel>> GetAllHospitalsAsync()
+        public async Task<List<HospitalModel>?> GetAllHospitalDetailsAsync()
         {
-            return await _dbContext.Hospitals.Where(h => !h.IsDeleted).ToListAsync();
+            return await _dbContext.Hospitals.Where(u => !u.IsDeleted).ToListAsync();
         }
 
-        public async Task<int> GetSlotsAvailableAsync(string hospitalId)
+        public async Task DeleteHospitalAsync(HospitalModel hospitalDeleteRequest)
         {
-            var foundHospital = await GetHospitalByIdAsync(hospitalId);
-            return foundHospital.SlotsAvailable;
-        }
+            ArgumentNullException.ThrowIfNull(hospitalDeleteRequest);
 
-        public async Task<int> UpdateTotalSlotsAsync(string hospitalId, int totalSlots)
-        {
-            var foundHospital = await GetHospitalByIdAsync(hospitalId);
-            foundHospital.TotalSlots = totalSlots;
-            _dbContext.Hospitals.Update(foundHospital);
-            await _dbContext.SaveChangesAsync();
-            return foundHospital.TotalSlots;
-        }
-
-        public async Task<HospitalModel> UpdateAvailableSlotsAsync(string hospitalId, int currentAvailableSlots)
-        {
-            var foundHospital = await GetHospitalByIdAsync(hospitalId);
-            foundHospital.SlotsAvailable = currentAvailableSlots;
-            _dbContext.Hospitals.Update(foundHospital);
-            await _dbContext.SaveChangesAsync();
-            return await GetHospitalByIdAsync(hospitalId);
-        }
-
-        public async Task DeleteHospitalAsync(string hospitalId, DateTime removedDatetime, bool isDeleted)
-        {
-            var foundHospital = await GetHospitalByIdAsync(hospitalId);
-            foundHospital.IsDeleted = isDeleted;
-            foundHospital.UpdatedDate = removedDatetime;
-            foundHospital.RemovedDate = removedDatetime;
-            _dbContext.Hospitals.Update(foundHospital);
+            _dbContext.Hospitals.Update(hospitalDeleteRequest);
             await _dbContext.SaveChangesAsync();
         }
 
-        public async Task<bool> IsHospitalExistingAsync(string hospitalId)
+        public async Task<bool> IsHospitalExists(string hospitalId)
         {
-            return await _dbContext.Hospitals.AnyAsync(h => h.HospitalId == hospitalId && !h.IsDeleted);
+            ArgumentNullException.ThrowIfNull(hospitalId);
+
+            return await _dbContext.Hospitals.AnyAsync(h=>h.HospitalId == hospitalId && !h.IsDeleted);
         }
+
     }
 }
