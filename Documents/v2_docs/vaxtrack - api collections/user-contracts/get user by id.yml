@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseURL}}/api/vaxtrack/v1/user/getuserprofiledata/Tarun-17-45"
+  url: "{{baseURL}}/api/vaxtrack/v1/user/getuserprofiledata/Tarun-17-67"
   auth: inherit
 
 settings:

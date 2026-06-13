@@ -1,12 +1,9 @@
 
 
-using System.ComponentModel.DataAnnotations;
-
-namespace Vaxtrack.Models
+namespace Vaxtrack.Dtos.BookingDtos
 {
-    public class BookingModel
+    public class BookingMasterDataDto
     {
-        [Key]
         public string BookingId {get; set;} = "";
         public string BookingUid {get; set;} = "";
         public string UserUid {get; set;} = "";
@@ -26,6 +23,5 @@ namespace Vaxtrack.Models
         public DateTime CreatedAt {get; set;}
         public DateTime ModifiedAt {get; set;}
         public bool IsDeleted {get; set;} = false;
-    
     }
 }

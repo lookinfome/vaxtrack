@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "hospitalname": "Sunrise City Hospital"
+        "hospitalname": "Ruby Med Center"
       }
   auth: inherit
 

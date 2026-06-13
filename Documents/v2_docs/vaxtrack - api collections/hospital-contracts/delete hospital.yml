@@ -1,10 +1,11 @@
 info:
   name: delete hospital
   type: http
+  seq: 1
 
 http:
   method: DELETE
-  url: "{{baseURL}}/api/vaxtrack/v1/hospital/deletehospital/Rub_ccbdbdcc"
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/deletehospital/Rub_51f418f6"
   auth: inherit
 
 settings:

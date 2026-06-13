@@ -10,11 +10,13 @@ http:
     type: json
     data: |-
       {
-        "firstName": "Tarun",
-        "lastName": "Mehta",
-        "userBirthdate": "1989-01-09",
+        "firstName": "Shubham",
+        "lastName": "Raj",
+        "userBirthdate": "1989-07-09",
         "userGender": "Male",
-        "userPhone": "8754153429"
+        "userPhone": "7865988897",
+        "userAddress": "Brookfield, Bangalore, Karnataka, India",
+        "userPincode": "560210"
       }
   auth: inherit
 

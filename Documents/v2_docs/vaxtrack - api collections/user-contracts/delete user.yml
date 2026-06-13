@@ -5,7 +5,7 @@ info:
 
 http:
   method: DELETE
-  url: "{{baseURL}}/api/vaxtrack/v1/user/deleteuser/Tarun-17-df"
+  url: "{{baseURL}}/api/vaxtrack/v1/user/deleteuser/Tarun-17-67"
   auth: inherit
 
 settings:
