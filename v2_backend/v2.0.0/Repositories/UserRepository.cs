@@ -13,59 +13,52 @@ namespace Vaxtrack.Repositories
             _dbContext = dbContext;
         }
 
-        public async Task<UserModel> AddUserAsync(UserModel userDetails)
+        public async Task<UserModel> CreateUserAsync(UserModel userCreateRequest)
         {
-            _dbContext.Users.Add(userDetails);
+            ArgumentNullException.ThrowIfNull(userCreateRequest);
+
+            _dbContext.Users.Add(userCreateRequest);
             await _dbContext.SaveChangesAsync();
-            return userDetails;
+            return userCreateRequest;
         }
 
-        public async Task<UserModel> UpdateUserAsync(UserModel userDetails)
+        public async Task<UserModel> UpdateUserAsync(UserModel userUpdateRequest)
         {
-            var foundUser = await GetUserByIdAsync(userDetails.UserId);
+            ArgumentNullException.ThrowIfNull(userUpdateRequest);
 
-            // Update the user properties
-            foundUser?.UserName = userDetails.UserName;
-            foundUser?.UserGender = userDetails.UserGender;
-            foundUser?.UserPhone = userDetails.UserPhone;
-            foundUser?.UpdatedAt = userDetails.UpdatedAt;
-            foundUser?.ProfilePicturePath = userDetails.ProfilePicturePath;
-
-            _dbContext.Users.Update(foundUser!);
+            _dbContext.Users.Update(userUpdateRequest);
             await _dbContext.SaveChangesAsync();
-            return foundUser!;
+            return userUpdateRequest;
         }
 
-        public async Task<UserModel?> GetUserByIdAsync(string userId)
+        public async Task<UserModel?> GetUserDetailsByUserIdAsync(string userId)
         {
-            var foundUser = await _dbContext.Users.FindAsync(userId);
-            if (foundUser == null)
-            {
-                throw new ArgumentException("User not found");
-            }
+            ArgumentNullException.ThrowIfNull(userId);
 
+            var foundUser = await _dbContext.Users.Where(u=>u.UserId == userId && !u.IsDeleted).FirstOrDefaultAsync();
             return foundUser;
         }
 
-        public async Task<List<UserModel>?> GetAllUsersAsync()
+        public async Task<List<UserModel>?> GetAllUsersDetailAsync()
         {
-            return await _dbContext.Users.Where(u => !u.IsDeleted).ToListAsync();    
+            return await _dbContext.Users.Where(u => !u.IsDeleted).ToListAsync();   
         }
 
-        public async Task DeleteUserAsync(string userId, DateTime deletedAt, bool isDeleted)
+        public async Task DeleteUserAsync(UserModel userDeleteRequest)
         {
-            var foundUser = await GetUserByIdAsync(userId);
-            foundUser?.IsDeleted = isDeleted;
-            foundUser?.DeletedAt = deletedAt;
-            foundUser?.UpdatedAt = deletedAt;
-            _dbContext.Users.Update(foundUser!);
+            ArgumentNullException.ThrowIfNull(userDeleteRequest);
+
+            _dbContext.Users.Update(userDeleteRequest);
             await _dbContext.SaveChangesAsync();
         }
 
-        public async Task<bool> UserExistsAsync(string userId)
+        public async Task<bool> IsUserExists(string userId)
         {
-            return await _dbContext.Users.AnyAsync(u => u.UserId == userId && !u.IsDeleted);
+            ArgumentNullException.ThrowIfNull(userId);
+
+            return await _dbContext.Users.AnyAsync(u=>u.UserId == userId && !u.IsDeleted);
         }
+
 
     }
 }

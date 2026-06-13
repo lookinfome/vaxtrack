@@ -1,6 +1,7 @@
 # C# / .NET
 bin/
 obj/
+Migrations/
 *.dll
 *.exe
 *.pdb

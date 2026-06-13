@@ -70,4 +70,5 @@ public class VaxtrackDbContext : DbContext
 
     public DbSet<UserModel> Users { get; set; }
     public DbSet<HospitalModel> Hospitals { get; set; }
+    public DbSet<BookingModel> Bookings {get; set;}
 }
