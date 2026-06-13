@@ -10,10 +10,11 @@ http:
     type: json
     data: |-
       {
-        "hospitalid": "Rub_6085962d",
+        "hospitalid": "Sun_b5826884",
         "hospitaladdress": "New Delhi, Delhi, India",
         "hospitalPhonenumber": "8090453287",
-        "hospitalemail": "rub@gmail.com"
+        "hospitalemail": "rub@gmail.com",
+        "hospitalPinCode": "658000"
       }
   auth: inherit
 

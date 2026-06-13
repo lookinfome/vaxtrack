@@ -5,7 +5,7 @@ info:
 
 http:
   method: PUT
-  url: "{{baseURL}}/api/vaxtrack/v1/hospital/updatetotalslots/Rub_ccbdbdcc/100"
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/updatetotalslots/Sun_b5826884/100"
   auth: inherit
 
 settings:

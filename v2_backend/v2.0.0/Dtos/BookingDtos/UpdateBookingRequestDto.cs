@@ -2,13 +2,14 @@
 
 using System.ComponentModel.DataAnnotations;
 
-namespace Vaxtrack.Models
+namespace Vaxtrack.Dtos.BookingDtos
 {
-    public class BookingModel
+    public class UpdateBookingRequestDto
     {
-        [Key]
+        [Required(ErrorMessage = "booking id is reuqired")]
         public string BookingId {get; set;} = "";
-        public string BookingUid {get; set;} = "";
+        
+        [Required(ErrorMessage = "user id is required")]
         public string UserUid {get; set;} = "";
         public DateTime Dose1RequestedDateTime {get; set;}
         public int Dose1SlotNumber {get; set;}
@@ -23,9 +24,5 @@ namespace Vaxtrack.Models
         public DateTime VaccinationCompletedDateTime {get; set;}
         public bool IsD1RequestCanceled {get; set;} = false;
         public bool IsD2RequestCanceled {get; set;} = false;
-        public DateTime CreatedAt {get; set;}
-        public DateTime ModifiedAt {get; set;}
-        public bool IsDeleted {get; set;} = false;
-    
     }
 }
