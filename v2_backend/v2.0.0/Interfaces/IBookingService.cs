@@ -36,6 +36,9 @@ namespace Vaxtrack.Interfaces
         // delete bookings
         Task DeleteBookingAsync(string bookingId);
 
+        // cascade-delete all non-deleted bookings for a user (called by UserService on user deletion)
+        Task DeleteBookingsByUserUidAsync(string userUid);
+
         // is booking exists
         Task<bool> IsBookingExists(string bookingId);
     }

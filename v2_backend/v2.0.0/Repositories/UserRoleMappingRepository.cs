@@ -122,6 +122,60 @@ namespace Vaxtrack.Repositories
             }
         }
 
+        public async Task RevokeAllMappingsByUserUidAsync(string userUid)
+        {
+            ArgumentNullException.ThrowIfNull(userUid);
+
+            try
+            {
+                var activeMappings = await _dbContext.UserRoleMappings
+                    .Where(r => r.UserUid == userUid && r.IsActive)
+                    .ToListAsync();
+
+                var timestamp = DateTime.UtcNow;
+                foreach (var mapping in activeMappings)
+                {
+                    mapping.IsActive = false;
+                    mapping.UpdatedAt = timestamp;
+                }
+
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserRoleMappingRepository: RevokeAllMappingsByUserUidAsync - {Message}", ex.Message);
+                throw new Exception($"UserRoleMappingRepository: RevokeAllMappingsByUserUidAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task RevokeAllMappingsByContextIdAsync(string contextId)
+        {
+            ArgumentNullException.ThrowIfNull(contextId);
+
+            try
+            {
+                // Revoke all active role mappings scoped to this context (e.g. all hospital-admin
+                // assignments for a hospital that is being soft-deleted)
+                var activeMappings = await _dbContext.UserRoleMappings
+                    .Where(r => r.ContextId == contextId && r.IsActive)
+                    .ToListAsync();
+
+                var timestamp = DateTime.UtcNow;
+                foreach (var mapping in activeMappings)
+                {
+                    mapping.IsActive = false;
+                    mapping.UpdatedAt = timestamp;
+                }
+
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserRoleMappingRepository: RevokeAllMappingsByContextIdAsync - {Message}", ex.Message);
+                throw new Exception($"UserRoleMappingRepository: RevokeAllMappingsByContextIdAsync - {ex.Message}", ex);
+            }
+        }
+
         public async Task<bool> IsUserInRoleAsync(string userUid, string roleTag, string contextId)
         {
             ArgumentNullException.ThrowIfNull(userUid);

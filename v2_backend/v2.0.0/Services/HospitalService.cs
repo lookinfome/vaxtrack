@@ -4,17 +4,22 @@ using Vaxtrack.Dtos.HospitalDtos;
 using Vaxtrack.Models;
 using Vaxtrack.Interfaces.UtilityInterfaces;
 
+
 namespace Vaxtrack.Services
 {
     public class HospitalService : IHospitalService
     {
         private readonly IHospitalRepository _hospitalRepository;
+        private readonly IBookingRepository _bookingRepository;
+        private readonly IUserRoleMappingRepository _roleMappingRepository;
         private readonly IUtilityService _utilityService;
         private readonly ILogger<HospitalService> _logger;
 
-        public HospitalService(IHospitalRepository hospitalRepository, IUtilityService utilityService, ILogger<HospitalService> logger)
+        public HospitalService(IHospitalRepository hospitalRepository, IBookingRepository bookingRepository, IUserRoleMappingRepository roleMappingRepository, IUtilityService utilityService, ILogger<HospitalService> logger)
         {
             _hospitalRepository = hospitalRepository;
+            _bookingRepository = bookingRepository;
+            _roleMappingRepository = roleMappingRepository;
             _utilityService = utilityService;
             _logger = logger;
         }
@@ -205,12 +210,10 @@ namespace Vaxtrack.Services
             {
                 var foundHospitalList = await _hospitalRepository.GetAllHospitalDetailsAsync();
 
-                if (foundHospitalList is null)
-                    throw new Exception("HospitalService: GetAllHospitalsAsync - no hospitals found");
-
                 List<HospitalProfileDataDto> hospitalList = [];
-                foreach (var hospital in foundHospitalList)
-                    hospitalList.Add(MapToHospitalProfileDataDto(hospital));
+                if (foundHospitalList is not null)
+                    foreach (var hospital in foundHospitalList)
+                        hospitalList.Add(MapToHospitalProfileDataDto(hospital));
 
                 return hospitalList;
             }
@@ -232,12 +235,14 @@ namespace Vaxtrack.Services
              * because the repository filters out soft-deleted records.
              *
              * Edge cases blocked:
-             *   - Null hospitalId     → ArgumentNullException thrown before entering try.
-             *   - Hospital not found  → throws (includes already-deleted hospitals).
-             *
-             * Note: active bookings referencing this hospital are NOT checked before deletion.
-             * Existing bookings will retain the hospitalId but UpdateAvailableSlotsAsync will
-             * fail on any subsequent slot adjustment for this hospital.
+             *   - Null hospitalId              → ArgumentNullException thrown before entering try.
+             *   - Hospital not found           → throws (includes already-deleted hospitals).
+             *   - Active bookings still exist  → throws (admin must cancel/transfer those bookings first).
+             *                                    "Active" means a pending dose at this hospital that has
+             *                                    not yet been administered or canceled. Blocking here
+             *                                    prevents orphaned bookings that reference a non-existent
+             *                                    hospital and would cause UpdateAvailableSlotsAsync to fail
+             *                                    on any subsequent cancellation or deletion.
              */
 
             ArgumentNullException.ThrowIfNull(hospitalId);
@@ -249,10 +254,18 @@ namespace Vaxtrack.Services
                 if (foundHospital is null)
                     throw new Exception($"HospitalService: DeleteHospitalAsync - hospital {hospitalId} not found");
 
+                bool hasActiveBookings = await _bookingRepository.HasActiveBookingsForHospitalAsync(foundHospital.HospitalId);
+                if (hasActiveBookings)
+                    throw new Exception($"HospitalService: DeleteHospitalAsync - hospital {hospitalId} has active bookings; cancel or transfer them before deleting the hospital");
+
                 foundHospital.IsDeleted = true;
                 foundHospital.RemovedDate = DateTime.UtcNow;
                 foundHospital.UpdatedDate = DateTime.UtcNow;
                 await _hospitalRepository.UpdateHospitalAsync(foundHospital);
+
+                // Cascade: soft-revoke all role mappings scoped to this hospital (e.g. hospital-admin
+                // assignments) so they no longer appear in GetUsersInRoleAsync results
+                await _roleMappingRepository.RevokeAllMappingsByContextIdAsync(foundHospital.HospitalId);
             }
             catch (Exception ex)
             {

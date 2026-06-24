@@ -12,6 +12,8 @@ namespace Vaxtrack.Interfaces.RepositoryInterfaces
         Task<BookingModel?> GetBookingDetailsByUserUidAsync(string userId);
         Task<List<BookingModel>?> GetBookingDetailsByHospitalUidAsync(string hospitalId);
         Task<List<BookingModel>?> GetAllBookingDetailsAsync();
+        Task<List<BookingModel>> GetAllActiveBookingsByUserUidAsync(string userUid);
+        Task<bool> HasActiveBookingsForHospitalAsync(string hospitalId);
         Task DeleteBookingAsync(BookingModel bookingDeleteRequest);
         Task<bool> IsBookingExistsAsync(string userId);
     }

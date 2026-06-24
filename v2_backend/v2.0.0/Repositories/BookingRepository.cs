@@ -131,6 +131,43 @@ namespace Vaxtrack.Repositories
             }
         }
 
+        public async Task<List<BookingModel>> GetAllActiveBookingsByUserUidAsync(string userUid)
+        {
+            ArgumentNullException.ThrowIfNull(userUid);
+
+            try
+            {
+                return await _dbContext.Bookings
+                    .Where(b => b.UserUid == userUid && !b.IsDeleted)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingRepository: GetAllActiveBookingsByUserUidAsync - {Message}", ex.Message);
+                throw new Exception($"BookingRepository: GetAllActiveBookingsByUserUidAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<bool> HasActiveBookingsForHospitalAsync(string hospitalId)
+        {
+            ArgumentNullException.ThrowIfNull(hospitalId);
+
+            try
+            {
+                // An "active" booking is one where a pending dose has not yet been
+                // administered or canceled — i.e., the hospital still holds a slot for it
+                return await _dbContext.Bookings.AnyAsync(b =>
+                    !b.IsDeleted &&
+                    ((b.Dose1HospitalUid == hospitalId && !b.IsDose1Completed && !b.IsD1RequestCanceled) ||
+                     (b.Dose2HospitalUid == hospitalId && !b.IsDose2Completed && !b.IsD2RequestCanceled)));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingRepository: HasActiveBookingsForHospitalAsync - {Message}", ex.Message);
+                throw new Exception($"BookingRepository: HasActiveBookingsForHospitalAsync - {ex.Message}", ex);
+            }
+        }
+
         public async Task<bool> IsBookingExistsAsync(string userUid)
         {
             ArgumentNullException.ThrowIfNull(userUid);

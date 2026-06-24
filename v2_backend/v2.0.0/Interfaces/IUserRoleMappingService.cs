@@ -9,5 +9,6 @@ namespace Vaxtrack.Interfaces
         Task<List<UserRoleMappingProfileDto>> GetUserRolesAsync(string userUid);
         Task<List<UserRoleMappingProfileDto>> GetUsersInRoleAsync(string roleTag, string contextId);
         Task<bool> IsUserInRoleAsync(string userUid, string roleTag, string contextId);
+        Task RevokeUserRoleMappingsAsync(string userUid);
     }
 }

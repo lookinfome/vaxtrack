@@ -9,12 +9,16 @@ namespace Vaxtrack.Services
     public class UserService : IUserService
     {
         private readonly IUserRepository _userRepository;
+        private readonly IBookingService _bookingService;
+        private readonly IUserRoleMappingService _roleMappingService;
         private readonly IUtilityService _utilityService;
         private readonly ILogger<UserService> _logger;
 
-        public UserService(IUserRepository userRepository, IUtilityService utilityService, ILogger<UserService> logger)
+        public UserService(IUserRepository userRepository, IBookingService bookingService, IUserRoleMappingService roleMappingService, IUtilityService utilityService, ILogger<UserService> logger)
         {
             _userRepository = userRepository;
+            _bookingService = bookingService;
+            _roleMappingService = roleMappingService;
             _utilityService = utilityService;
             _logger = logger;
         }
@@ -117,12 +121,10 @@ namespace Vaxtrack.Services
             {
                 var foundUsersList = await _userRepository.GetAllUsersDetailAsync();
 
-                if (foundUsersList is null)
-                    throw new Exception("UserService: GetAllUsersAsync - no users found");
-
                 List<UserProfileDataDto> usersList = [];
-                foreach (var user in foundUsersList)
-                    usersList.Add(MapToUserProfileDto(user));
+                if (foundUsersList is not null)
+                    foreach (var user in foundUsersList)
+                        usersList.Add(MapToUserProfileDto(user));
 
                 return usersList;
             }
@@ -143,12 +145,15 @@ namespace Vaxtrack.Services
              * Once deleted, any subsequent call with the same userId returns "not found"
              * because the repository filters out soft-deleted records.
              *
+             * Cascade: all non-deleted bookings belonging to this user are also soft-deleted.
+             * Each cascaded booking deletion restores the hospital's available slot for any
+             * dose that was still pending (not yet administered and not already canceled).
+             * This keeps slot counts accurate and prevents orphaned bookings from blocking
+             * future users from reserving those slots.
+             *
              * Edge cases blocked:
              *   - Null userId        → ArgumentNullException thrown before entering try.
              *   - User not found     → throws (includes already-deleted users).
-             *
-             * Note: active bookings belonging to this user are NOT checked before deletion.
-             * Those booking records will remain and will still reference the deleted user's UserUid.
              */
 
             ArgumentNullException.ThrowIfNull(userId);
@@ -164,6 +169,13 @@ namespace Vaxtrack.Services
                 foundUser.DeletedAt = DateTime.UtcNow;
                 foundUser.UpdatedAt = DateTime.UtcNow;
                 await _userRepository.UpdateUserAsync(foundUser);
+
+                // Cascade: soft-delete all bookings for this user and restore any pending slots
+                await _bookingService.DeleteBookingsByUserUidAsync(foundUser.UserUid);
+
+                // Cascade: soft-revoke all role mappings so the deleted user no longer appears
+                // in GetUsersInRoleAsync results
+                await _roleMappingService.RevokeUserRoleMappingsAsync(foundUser.UserUid);
             }
             catch (Exception ex)
             {
@@ -195,7 +207,7 @@ namespace Vaxtrack.Services
                 UserRole = false,
                 ProfilePicturePath = "",
                 CreatedAt = timestamp,
-                UpdatedAt = timestamp
+                UpdatedAt = null   // null until first profile update via UpdateUserAsync
             };
         }
 

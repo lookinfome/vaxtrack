@@ -6,7 +6,7 @@ namespace Vaxtrack.Dtos.UserDtos
 
         public string UserName { get; set; } = "";
 
-        public bool UserRole { get; set; } = true;
+        public bool UserRole { get; set; } = false;
         public DateTime CreatedAt {get; set;}
 
     }

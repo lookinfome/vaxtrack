@@ -11,5 +11,7 @@ namespace Vaxtrack.Interfaces.RepositoryInterfaces
         Task<List<UserRoleMappingModel>> GetRoleMappingsByRoleTagAsync(string roleTag, string contextId);
         Task<UserRoleMappingModel?> GetExistingMappingAsync(string userUid, string roleTag, string contextId);
         Task<bool> IsUserInRoleAsync(string userUid, string roleTag, string contextId);
+        Task RevokeAllMappingsByUserUidAsync(string userUid);
+        Task RevokeAllMappingsByContextIdAsync(string contextId);
     }
 }

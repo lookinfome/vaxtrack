@@ -31,6 +31,10 @@ namespace Vaxtrack.Services
 
             try
             {
+                // Requested date must be in the future
+                if (createBookingRequest.Dose1RequestedDateTime <= DateTime.UtcNow)
+                    throw new Exception($"BookingService: CreateBookingAsync - Dose1RequestedDateTime must be a future date");
+
                 // Enforce one active booking per user — duplicate bookings are not allowed
                 bool userAlreadyBooked = await _bookingRepository.IsBookingExistsAsync(createBookingRequest.UserUid);
                 if (userAlreadyBooked)
@@ -62,10 +66,18 @@ namespace Vaxtrack.Services
 
             try
             {
+                // Requested date must be in the future
+                if (bookDose2Request.Dose2RequestedDateTime <= DateTime.UtcNow)
+                    throw new Exception($"BookingService: BookDose2Async - Dose2RequestedDateTime must be a future date");
+
                 var foundBooking = await _bookingRepository.GetBookingDetailsByBookingIdAsync(bookDose2Request.BookingId);
 
                 if (foundBooking == null)
                     throw new Exception($"BookingService: BookDose2Async - booking {bookDose2Request.BookingId} not found");
+
+                // Ownership check — the requesting user must own this booking
+                if (foundBooking.UserUid != bookDose2Request.UserUid)
+                    throw new Exception($"BookingService: BookDose2Async - booking {bookDose2Request.BookingId} does not belong to user {bookDose2Request.UserUid}");
 
                 // Dose 1 must be physically administered before Dose 2 can be scheduled
                 if (!foundBooking.IsDose1Completed)
@@ -264,6 +276,10 @@ namespace Vaxtrack.Services
                 if (foundBooking == null)
                     throw new Exception($"BookingService: UpdateBookingAsync - booking {updateBookingRequest.BookingId} not found");
 
+                // Ownership check — UserUid in request must match the booking record
+                if (foundBooking.UserUid != updateBookingRequest.UserUid)
+                    throw new Exception($"BookingService: UpdateBookingAsync - booking {updateBookingRequest.BookingId} does not belong to user {updateBookingRequest.UserUid}");
+
                 var mappedBooking = MapUpdateBookingRequestToBookingModel(foundBooking, updateBookingRequest);
                 var updatedBooking = await _bookingRepository.UpdateBookingAsync(mappedBooking);
                 return MapToUpdateBookingResponseDto(updatedBooking);
@@ -318,12 +334,11 @@ namespace Vaxtrack.Services
             try
             {
                 var foundBookings = await _bookingRepository.GetBookingDetailsByHospitalUidAsync(hospitalId);
-                if (foundBookings == null)
-                    throw new Exception($"BookingService: GetBookingsByHospitalIdAsync - no bookings found for hospital {hospitalId}");
 
                 List<BookingProfileDataDto> bookingList = [];
-                foreach (var booking in foundBookings)
-                    bookingList.Add(MapToBookingProfileDto(booking));
+                if (foundBookings is not null)
+                    foreach (var booking in foundBookings)
+                        bookingList.Add(MapToBookingProfileDto(booking));
                 return bookingList;
             }
             catch (Exception ex)
@@ -338,12 +353,11 @@ namespace Vaxtrack.Services
             try
             {
                 var foundBookings = await _bookingRepository.GetAllBookingDetailsAsync();
-                if (foundBookings is null)
-                    throw new Exception("BookingService: GetAllBookingsAsync - no bookings found");
 
                 List<BookingProfileDataDto> bookingList = [];
-                foreach (var booking in foundBookings)
-                    bookingList.Add(MapToBookingProfileDto(booking));
+                if (foundBookings is not null)
+                    foreach (var booking in foundBookings)
+                        bookingList.Add(MapToBookingProfileDto(booking));
                 return bookingList;
             }
             catch (Exception ex)
@@ -384,6 +398,34 @@ namespace Vaxtrack.Services
             {
                 _logger.LogError(ex, "BookingService: DeleteBookingAsync - {Message}", ex.Message);
                 throw new Exception($"BookingService: DeleteBookingAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task DeleteBookingsByUserUidAsync(string userUid)
+        {
+            /*
+             * Cascade Delete Logic (called by UserService on user soft-deletion):
+             * -------------------------------------------------------------------
+             * Soft-deletes every non-deleted booking for a given UserUid and restores
+             * any hospital slots that were still being held for pending doses.
+             * Delegates to DeleteBookingAsync so the slot-restoration logic is not duplicated.
+             *
+             * If a booking is already fully vaccinated or canceled, DeleteBookingAsync still
+             * soft-deletes it but correctly skips the slot restoration for completed/canceled doses.
+             */
+
+            ArgumentNullException.ThrowIfNull(userUid);
+
+            try
+            {
+                var activeBookings = await _bookingRepository.GetAllActiveBookingsByUserUidAsync(userUid);
+                foreach (var booking in activeBookings)
+                    await DeleteBookingAsync(booking.BookingId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingService: DeleteBookingsByUserUidAsync - {Message}", ex.Message);
+                throw new Exception($"BookingService: DeleteBookingsByUserUidAsync - {ex.Message}", ex);
             }
         }
 

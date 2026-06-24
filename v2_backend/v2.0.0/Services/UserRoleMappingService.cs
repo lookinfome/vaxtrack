@@ -170,6 +170,30 @@ namespace Vaxtrack.Services
             }
         }
 
+        public async Task RevokeUserRoleMappingsAsync(string userUid)
+        {
+            /*
+             * Bulk Revoke Logic (called by UserService on user soft-deletion):
+             * -----------------------------------------------------------------
+             * Soft-revokes all active role mappings for a given user so that the
+             * deleted user no longer appears in GetUsersInRoleAsync results.
+             * Records are kept for audit trail — they can be reactivated if the
+             * deletion is ever reversed at the data level.
+             */
+
+            ArgumentNullException.ThrowIfNull(userUid);
+
+            try
+            {
+                await _roleMappingRepository.RevokeAllMappingsByUserUidAsync(userUid);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserRoleMappingService: RevokeUserRoleMappingsAsync - {Message}", ex.Message);
+                throw new Exception($"UserRoleMappingService: RevokeUserRoleMappingsAsync - {ex.Message}", ex);
+            }
+        }
+
         public async Task<bool> IsUserInRoleAsync(string userUid, string roleTag, string contextId)
         {
             ArgumentNullException.ThrowIfNull(userUid);
