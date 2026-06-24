@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Dtos.HospitalDtos;
 
 namespace Vaxtrack.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("/api/vaxtrack/v1/[controller]/[action]")]
     public class HospitalController : ControllerBase
@@ -17,6 +19,7 @@ namespace Vaxtrack.Controllers
             _logger = logger;
         }
 
+        [Authorize(Roles = "admin")]
         [HttpPost]
         public async Task<ActionResult<CreateHospitalResponseDto>> CreateHospitalAsync(CreateHospitalRequestDto createHospitalRequestDto)
         {
@@ -32,6 +35,7 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [Authorize(Roles = "admin")]
         [HttpPut]
         public async Task<ActionResult<UpdateHospitalResponseDto>> UpdateHospitalAsync(UpdateHospitalRequestDto updateHospitalRequest)
         {
@@ -47,6 +51,7 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [Authorize(Roles = "admin")]
         [HttpPut("{hospitalId}/{totalSlots}")]
         public async Task<ActionResult<int>> UpdateTotalSlotsAsync(string hospitalId, int totalSlots)
         {
@@ -62,6 +67,7 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [Authorize(Roles = "admin")]
         [HttpPut("{hospitalId}/{slotsToUpdate}")]
         public async Task<ActionResult<int>> UpdateAvailableSlotsAsync(string hospitalId, int slotsToUpdate)
         {
@@ -107,6 +113,7 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [Authorize(Roles = "admin")]
         [HttpDelete("{hospitalId}")]
         public async Task<ActionResult> DeleteHospitalAsync(string hospitalId)
         {

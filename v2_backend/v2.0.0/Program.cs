@@ -1,12 +1,16 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Interfaces.RepositoryInterfaces;
 using Vaxtrack.Interfaces.UtilityInterfaces;
+using Vaxtrack.Models;
 using Vaxtrack.Repositories;
 using Vaxtrack.Services;
 using Vaxtrack.Utilities;
-using Vaxtrack.Models;
 
 // Configure Serilog — new log file created on every app start
 var startupTimestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
@@ -26,6 +30,43 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Replace default logging with Serilog
 builder.Host.UseSerilog();
+
+// Bind JwtSettings and register as singleton so AuthService can inject it
+var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
+builder.Services.AddSingleton(jwtSettings);
+
+// Configure JWT bearer authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key)),
+            ValidateIssuer           = true,
+            ValidIssuer              = jwtSettings.Issuer,
+            ValidateAudience         = true,
+            ValidAudience            = jwtSettings.Audience,
+            ValidateLifetime         = true,
+            ClockSkew                = TimeSpan.Zero,
+            RoleClaimType            = "role"
+        };
+
+        // Reject tokens that have been explicitly revoked via /auth/logout
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var blacklist = context.HttpContext.RequestServices
+                    .GetRequiredService<ITokenBlacklistRepository>();
+
+                var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+
+                if (!string.IsNullOrEmpty(jti) && await blacklist.IsRevokedAsync(jti))
+                    context.Fail("Token has been revoked.");
+            }
+        };
+    });
 
 // Add services to the container
 builder.Services.AddOpenApi();
@@ -56,7 +97,10 @@ builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IUserRoleMappingRepository, UserRoleMappingRepository>();
 builder.Services.AddScoped<IUserRoleMappingService, UserRoleMappingService>();
+builder.Services.AddScoped<IUserCredentialsRepository, UserCredentialsRepository>();
+builder.Services.AddScoped<ITokenBlacklistRepository, TokenBlacklistRepository>();
 builder.Services.AddScoped<IUtilityService, UtilityService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 var app = builder.Build();
 
@@ -87,7 +131,9 @@ public class VaxtrackDbContext : DbContext
     public VaxtrackDbContext(DbContextOptions<VaxtrackDbContext> options) : base(options) { }
 
     public DbSet<UserModel> Users { get; set; }
+    public DbSet<UserCredentialsModel> UserCredentials { get; set; }
     public DbSet<HospitalModel> Hospitals { get; set; }
     public DbSet<BookingModel> Bookings { get; set; }
     public DbSet<UserRoleMappingModel> UserRoleMappings { get; set; }
+    public DbSet<RevokedTokenModel> RevokedTokens { get; set; }
 }

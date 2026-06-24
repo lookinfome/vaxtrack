@@ -25,12 +25,16 @@ namespace Vaxtrack.Services
             _logger = logger;
         }
 
-        public async Task<CreateBookingResponseDto> CreateBookingAsync(CreateBookingRequestDto createBookingRequest)
+        public async Task<CreateBookingResponseDto> CreateBookingAsync(CreateBookingRequestDto createBookingRequest, string callerUserUid)
         {
             ArgumentNullException.ThrowIfNull(createBookingRequest);
 
             try
             {
+                // A user can only book for themselves — prevents impersonation
+                if (createBookingRequest.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException($"BookingService: CreateBookingAsync - caller cannot create a booking for another user");
+
                 // Requested date must be in the future
                 if (createBookingRequest.Dose1RequestedDateTime <= DateTime.UtcNow)
                     throw new Exception($"BookingService: CreateBookingAsync - Dose1RequestedDateTime must be a future date");
@@ -53,6 +57,10 @@ namespace Vaxtrack.Services
 
                 return MapToCreateBookingResponseDto(createdBooking);
             }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "BookingService: CreateBookingAsync - {Message}", ex.Message);
@@ -60,7 +68,7 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<BookDose2ResponseDto> BookDose2Async(BookDose2RequestDto bookDose2Request)
+        public async Task<BookDose2ResponseDto> BookDose2Async(BookDose2RequestDto bookDose2Request, string callerUserUid)
         {
             ArgumentNullException.ThrowIfNull(bookDose2Request);
 
@@ -75,9 +83,9 @@ namespace Vaxtrack.Services
                 if (foundBooking == null)
                     throw new Exception($"BookingService: BookDose2Async - booking {bookDose2Request.BookingId} not found");
 
-                // Ownership check — the requesting user must own this booking
-                if (foundBooking.UserUid != bookDose2Request.UserUid)
-                    throw new Exception($"BookingService: BookDose2Async - booking {bookDose2Request.BookingId} does not belong to user {bookDose2Request.UserUid}");
+                // Ownership check — validated against JWT sub claim, not the client-supplied DTO field
+                if (foundBooking.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException($"BookingService: BookDose2Async - caller does not own booking {bookDose2Request.BookingId}");
 
                 // Dose 1 must be physically administered before Dose 2 can be scheduled
                 if (!foundBooking.IsDose1Completed)
@@ -105,6 +113,10 @@ namespace Vaxtrack.Services
                 await _hospitalService.UpdateAvailableSlotsAsync(bookDose2Request.Dose2HospitalUid, -1);
 
                 return MapToBookDose2ResponseDto(updatedBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -183,13 +195,14 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<BookingProfileDataDto> CancelBookingsAsync(string bookingId)
+        public async Task<BookingProfileDataDto> CancelBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin)
         {
             /*
              * Cancel Logic:
              * -------------
              * "Cancel" means a user or admin withdraws a pending dose request before it is administered.
              * Canceling restores the hospital's available slot so another user can book it.
+             * Ownership: only the booking owner or an admin can cancel.
              *
              * Priority order:
              *   1. If Dose 1 is not yet completed and not already canceled → cancel Dose 1.
@@ -201,6 +214,7 @@ namespace Vaxtrack.Services
              *
              * Edge cases blocked:
              *   - Booking not found                                         → throws
+             *   - Caller not owner (non-admin)                              → throws UnauthorizedAccessException
              *   - Vaccination already fully completed                       → throws (cannot undo an administered vaccine)
              *   - Dose 1 already canceled and no Dose 2 booked             → falls to else branch → throws
              *   - Dose 1 complete but Dose 2 not yet booked                → falls to else branch → throws
@@ -215,6 +229,9 @@ namespace Vaxtrack.Services
 
                 if (foundBooking == null)
                     throw new Exception($"BookingService: CancelBookingsAsync - booking {bookingId} not found");
+
+                if (!callerIsAdmin && foundBooking.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException($"BookingService: CancelBookingsAsync - caller does not own booking {bookingId}");
 
                 if (foundBooking.IsVaccinationCompleted)
                     throw new Exception($"BookingService: CancelBookingsAsync - booking {bookingId} vaccination is already completed and cannot be canceled");
@@ -247,6 +264,10 @@ namespace Vaxtrack.Services
 
                 var updatedBooking = await _bookingRepository.GetBookingDetailsByBookingIdAsync(bookingId);
                 return MapToBookingProfileDto(updatedBooking!);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -291,7 +312,7 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<BookingProfileDataDto?> GetBookingByBookingIdAsync(string bookingId)
+        public async Task<BookingProfileDataDto?> GetBookingByBookingIdAsync(string bookingId, string callerUserUid, bool callerIsAdmin)
         {
             ArgumentNullException.ThrowIfNull(bookingId);
 
@@ -300,7 +321,15 @@ namespace Vaxtrack.Services
                 var foundBooking = await _bookingRepository.GetBookingDetailsByBookingIdAsync(bookingId);
                 if (foundBooking == null)
                     throw new Exception($"BookingService: GetBookingByBookingIdAsync - booking {bookingId} not found");
+
+                if (!callerIsAdmin && foundBooking.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException($"BookingService: GetBookingByBookingIdAsync - caller does not own booking {bookingId}");
+
                 return MapToBookingProfileDto(foundBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -309,16 +338,29 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<BookingProfileDataDto?> GetBookingsByUserIdAsync(string userId)
+        public async Task<BookingProfileDataDto?> GetBookingsByUserIdAsync(string userId, string callerUserUid, bool callerIsAdmin)
         {
+            /*
+             * Note: the 'userId' parameter is the user's UserUid (GUID), not the readable UserId.
+             * This matches what the repository's GetBookingDetailsByUserUidAsync expects.
+             * Ownership check: callerUserUid (from JWT) must match the requested userId.
+             */
+
             ArgumentNullException.ThrowIfNull(userId);
 
             try
             {
+                if (!callerIsAdmin && userId != callerUserUid)
+                    throw new UnauthorizedAccessException($"BookingService: GetBookingsByUserIdAsync - caller cannot view another user's bookings");
+
                 var foundBooking = await _bookingRepository.GetBookingDetailsByUserUidAsync(userId);
                 if (foundBooking == null)
                     throw new Exception($"BookingService: GetBookingsByUserIdAsync - no booking found for user {userId}");
                 return MapToBookingProfileDto(foundBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

@@ -122,5 +122,6 @@ namespace Vaxtrack.Repositories
                 throw new Exception($"UserRepository: IsUserExists - {ex.Message}", ex);
             }
         }
+
     }
 }

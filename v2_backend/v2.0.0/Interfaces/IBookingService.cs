@@ -1,45 +1,30 @@
-
-
 using Vaxtrack.Dtos.BookingDtos;
 
 namespace Vaxtrack.Interfaces
 {
     public interface IBookingService
     {
-        // create booking
-        Task<CreateBookingResponseDto> CreateBookingAsync(CreateBookingRequestDto createBookingReqeust);
+        // callerUserUid enforces that a user can only create bookings for themselves
+        Task<CreateBookingResponseDto> CreateBookingAsync(CreateBookingRequestDto createBookingRequest, string callerUserUid);
 
-        // update booking
+        // Admin-only full field override
         Task<UpdateBookingResponseDto> UpdateBookingAsync(UpdateBookingRequestDto updateBookingRequest);
 
-        // get booking by booking id
-        Task<BookingProfileDataDto?> GetBookingByBookingIdAsync(string bookingId);
-
-        // get booking by user id
-        Task<BookingProfileDataDto?> GetBookingsByUserIdAsync(string userId);
-
-        // get bookings by hospital id
+        Task<BookingProfileDataDto?> GetBookingByBookingIdAsync(string bookingId, string callerUserUid, bool callerIsAdmin);
+        Task<BookingProfileDataDto?> GetBookingsByUserIdAsync(string userId, string callerUserUid, bool callerIsAdmin);
         Task<List<BookingProfileDataDto>?> GetBookingsByHospitalIdAsync(string hospitalId);
-
-        // get all bookings
         Task<List<BookingProfileDataDto>?> GetAllBookingsAsync();
 
-        // book for dose 2
-        Task<BookDose2ResponseDto> BookDose2Async(BookDose2RequestDto bookDose2Request);
+        // callerUserUid enforces that only the booking owner can schedule Dose 2
+        Task<BookDose2ResponseDto> BookDose2Async(BookDose2RequestDto bookDose2Request, string callerUserUid);
 
-        // approve bookings
         Task<BookingProfileDataDto> ApproveBookingsAsync(string bookingId);
 
-        // cancel bookings
-        Task<BookingProfileDataDto> CancelBookingsAsync(string bookingId);
+        // callerUserUid + callerIsAdmin: owner or admin can cancel
+        Task<BookingProfileDataDto> CancelBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin);
 
-        // delete bookings
         Task DeleteBookingAsync(string bookingId);
-
-        // cascade-delete all non-deleted bookings for a user (called by UserService on user deletion)
         Task DeleteBookingsByUserUidAsync(string userUid);
-
-        // is booking exists
         Task<bool> IsBookingExists(string bookingId);
     }
 }

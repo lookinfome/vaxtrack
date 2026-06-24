@@ -7,6 +7,7 @@ namespace Vaxtrack.Dtos.UserDtos
         public DateTime UserBirthdate { get; set; }
         public int UserAge { get; set; }
         public string UserGender { get; set; } = "";
+        public string Email { get; set; } = "";
         public string UserPhone { get; set; } = "";
         public string UserAddress { get; set; } = "";
         public string UserPinCode { get; set; } = "";

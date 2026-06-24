@@ -1,9 +1,12 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.IdentityModel.Tokens.Jwt;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Dtos.BookingDtos;
 
 namespace Vaxtrack.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("/api/vaxtrack/v1/[controller]/[action]")]
     public class BookingController : ControllerBase
@@ -17,13 +20,24 @@ namespace Vaxtrack.Controllers
             _logger = logger;
         }
 
+        // ── helpers ───────────────────────────────────────────────────────────────
+
+        private string CallerUserUid => User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? "";
+        private bool CallerIsAdmin   => User.IsInRole("admin");
+
+        // ── endpoints ─────────────────────────────────────────────────────────────
+
         [HttpPost]
         public async Task<ActionResult<CreateBookingResponseDto>> CreateBookingAsync(CreateBookingRequestDto createBookingRequestDto)
         {
             try
             {
-                var createdBookingResponse = await _bookingService.CreateBookingAsync(createBookingRequestDto);
+                var createdBookingResponse = await _bookingService.CreateBookingAsync(createBookingRequestDto, CallerUserUid);
                 return CreatedAtAction(nameof(GetBookingByBookingIdAsync), new { bookingId = createdBookingResponse.BookingId }, createdBookingResponse);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {
@@ -32,6 +46,8 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        // Admin-only — allows full field override (dose completion flags, dates, etc.)
+        [Authorize(Roles = "admin")]
         [HttpPut]
         public async Task<ActionResult<UpdateBookingResponseDto>> UpdateBookingAsync(UpdateBookingRequestDto updateBookingRequestDto)
         {
@@ -52,8 +68,12 @@ namespace Vaxtrack.Controllers
         {
             try
             {
-                var bookDose2Response = await _bookingService.BookDose2Async(bookDose2RequestDto);
+                var bookDose2Response = await _bookingService.BookDose2Async(bookDose2RequestDto, CallerUserUid);
                 return Ok(bookDose2Response);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {
@@ -62,6 +82,7 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [Authorize(Roles = "admin")]
         [HttpPut("{bookingId}")]
         public async Task<ActionResult<BookingProfileDataDto>> ApproveBookingsAsync(string bookingId)
         {
@@ -82,8 +103,12 @@ namespace Vaxtrack.Controllers
         {
             try
             {
-                var canceledBooking = await _bookingService.CancelBookingsAsync(bookingId);
+                var canceledBooking = await _bookingService.CancelBookingsAsync(bookingId, CallerUserUid, CallerIsAdmin);
                 return Ok(canceledBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {
@@ -97,8 +122,12 @@ namespace Vaxtrack.Controllers
         {
             try
             {
-                var foundBooking = await _bookingService.GetBookingByBookingIdAsync(bookingId);
+                var foundBooking = await _bookingService.GetBookingByBookingIdAsync(bookingId, CallerUserUid, CallerIsAdmin);
                 return Ok(foundBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {
@@ -112,8 +141,12 @@ namespace Vaxtrack.Controllers
         {
             try
             {
-                var foundBooking = await _bookingService.GetBookingsByUserIdAsync(userId);
+                var foundBooking = await _bookingService.GetBookingsByUserIdAsync(userId, CallerUserUid, CallerIsAdmin);
                 return Ok(foundBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {
@@ -137,6 +170,7 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [Authorize(Roles = "admin")]
         [HttpGet]
         public async Task<ActionResult<List<BookingProfileDataDto>>> GetAllBookingsAsync()
         {
@@ -167,6 +201,7 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [Authorize(Roles = "admin")]
         [HttpDelete("{bookingId}")]
         public async Task<ActionResult> DeleteBookingAsync(string bookingId)
         {

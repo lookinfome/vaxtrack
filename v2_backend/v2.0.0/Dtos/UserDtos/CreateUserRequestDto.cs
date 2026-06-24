@@ -24,10 +24,18 @@ namespace Vaxtrack.Dtos.UserDtos
         [Required(ErrorMessage = "user address is required")]
         public string UserAddress { get; set; } = "";
 
-        [Required(ErrorMessage = "user address pincode is required")]        
+        [Required(ErrorMessage = "user address pincode is required")]
         [StringLength(10, ErrorMessage = "pin code cannot be longer than 6 digits")]
         [RegularExpression(@"^\d{6}$", ErrorMessage = "pin code must be 6 digits")]
         public string UserPinCode { get; set; } = "";
+
+        [Required(ErrorMessage = "email is required")]
+        [EmailAddress(ErrorMessage = "invalid email address")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "password is required")]
+        [MinLength(8, ErrorMessage = "password must be at least 8 characters")]
+        public string Password { get; set; } = "";
 
     }
 }

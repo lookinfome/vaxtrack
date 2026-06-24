@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Vaxtrack.Dtos.UserRoleMappingDtos;
 using Vaxtrack.Interfaces;
 
 namespace Vaxtrack.Controllers
 {
+    [Authorize(Roles = "admin")]
     [ApiController]
     [Route("/api/vaxtrack/v1/[controller]/[action]")]
     public class UserRoleMappingController : ControllerBase
