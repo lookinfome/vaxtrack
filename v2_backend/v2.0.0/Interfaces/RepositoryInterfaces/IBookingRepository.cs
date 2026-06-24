@@ -8,9 +8,11 @@ namespace Vaxtrack.Interfaces.RepositoryInterfaces
     {
         Task<BookingModel> CreateBookingAsync(BookingModel bookingCreateRequest);
         Task<BookingModel> UpdateBookingAsync(BookingModel bookingUpdateRequest);
-        Task<BookingModel?> GetBookingDetailsByBookingId(string bookingId);
-        Task<BookingModel?> GetBookingDetailsByUserUid(string userId);
+        Task<BookingModel?> GetBookingDetailsByBookingIdAsync(string bookingId);
+        Task<BookingModel?> GetBookingDetailsByUserUidAsync(string userId);
+        Task<List<BookingModel>?> GetBookingDetailsByHospitalUidAsync(string hospitalId);
+        Task<List<BookingModel>?> GetAllBookingDetailsAsync();
         Task DeleteBookingAsync(BookingModel bookingDeleteRequest);
-        Task<bool> IsBookingExists(string userId);
+        Task<bool> IsBookingExistsAsync(string userId);
     }
 }

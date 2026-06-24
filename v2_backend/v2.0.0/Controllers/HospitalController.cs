@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Mvc;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Dtos.HospitalDtos;
@@ -10,32 +9,12 @@ namespace Vaxtrack.Controllers
     public class HospitalController : ControllerBase
     {
         private readonly IHospitalService _hospitalService;
+        private readonly ILogger<HospitalController> _logger;
 
-        public HospitalController(IHospitalService hospitalService)
+        public HospitalController(IHospitalService hospitalService, ILogger<HospitalController> logger)
         {
             _hospitalService = hospitalService;
-        }
-
-        [HttpGet("{hospitalId}")]
-        public async Task<ActionResult<HospitalProfileDataDto>> GetHospitalByIdAsync(string hospitalId)
-        {
-            ArgumentNullException.ThrowIfNull(hospitalId);
-            try
-            {
-                var foundHospital = await _hospitalService.GetHospitalByIdAsync(hospitalId);
-                return foundHospital;
-            }
-            catch (ArgumentException ex)
-            {                
-                return BadRequest(ex.Message);
-            }
-        }
-
-        [HttpGet]
-        public async Task<ActionResult<List<HospitalProfileDataDto>>> GetAllHospitals()
-        {
-            List<HospitalProfileDataDto> allHospitals = await _hospitalService.GetAllHospitalsAsync();
-            return Ok(allHospitals);
+            _logger = logger;
         }
 
         [HttpPost]
@@ -44,28 +23,28 @@ namespace Vaxtrack.Controllers
             try
             {
                 var createdHospitalResponse = await _hospitalService.CreateHospitalAsync(createHospitalRequestDto);
-                return Ok(createdHospitalResponse);
+                return CreatedAtAction(nameof(GetHospitalByIdAsync), new { hospitalId = createdHospitalResponse.HospitalId }, createdHospitalResponse);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "HospitalController: CreateHospitalAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
 
         [HttpPut]
         public async Task<ActionResult<UpdateHospitalResponseDto>> UpdateHospitalAsync(UpdateHospitalRequestDto updateHospitalRequest)
         {
-            ArgumentNullException.ThrowIfNull(updateHospitalRequest);
             try
             {
-                var updateHospital = await _hospitalService.UpdateHospitalAsync(updateHospitalRequest);
-                return Ok(updateHospital);
+                var updatedHospital = await _hospitalService.UpdateHospitalAsync(updateHospitalRequest);
+                return Ok(updatedHospital);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "HospitalController: UpdateHospitalAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
-
         }
 
         [HttpPut("{hospitalId}/{totalSlots}")]
@@ -74,11 +53,12 @@ namespace Vaxtrack.Controllers
             try
             {
                 int updatedSlots = await _hospitalService.UpdateTotalSlotsAsync(hospitalId, totalSlots);
-                return Ok($"Hospital with id {hospitalId} has been updated with {updatedSlots} total slots.");
+                return Ok(updatedSlots);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "HospitalController: UpdateTotalSlotsAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
 
@@ -88,11 +68,42 @@ namespace Vaxtrack.Controllers
             try
             {
                 int updatedSlots = await _hospitalService.UpdateAvailableSlotsAsync(hospitalId, slotsToUpdate);
-                return Ok($"Hospital with id {hospitalId} has been updated with {updatedSlots} slots available now.");
+                return Ok(updatedSlots);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "HospitalController: UpdateAvailableSlotsAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [HttpGet("{hospitalId}")]
+        public async Task<ActionResult<HospitalProfileDataDto>> GetHospitalByIdAsync(string hospitalId)
+        {
+            try
+            {
+                var foundHospital = await _hospitalService.GetHospitalByIdAsync(hospitalId);
+                return Ok(foundHospital);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: GetHospitalByIdAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<List<HospitalProfileDataDto>>> GetAllHospitalsAsync()
+        {
+            try
+            {
+                var allHospitals = await _hospitalService.GetAllHospitalsAsync();
+                return Ok(allHospitals);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: GetAllHospitalsAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
 
@@ -102,11 +113,12 @@ namespace Vaxtrack.Controllers
             try
             {
                 await _hospitalService.DeleteHospitalAsync(hospitalId);
-                return Ok($"Hospital with id {hospitalId} has been deleted.");
+                return NoContent();
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "HospitalController: DeleteHospitalAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
     }

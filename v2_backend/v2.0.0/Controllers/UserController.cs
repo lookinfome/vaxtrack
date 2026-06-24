@@ -9,10 +9,12 @@ namespace Vaxtrack.Controllers
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly ILogger<UserController> _logger;
 
-        public UserController(IUserService userService)
+        public UserController(IUserService userService, ILogger<UserController> logger)
         {
             _userService = userService;
+            _logger = logger;
         }
 
         [HttpPost]
@@ -21,11 +23,12 @@ namespace Vaxtrack.Controllers
             try
             {
                 var createdUserResponse = await _userService.CreateUserAsync(createUserRequestDto);
-                return Ok(createdUserResponse);
+                return CreatedAtAction(nameof(GetUserProfileDataAsync), new { userId = createdUserResponse.UserId }, createdUserResponse);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "UserController: CreateUserAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
 
@@ -37,9 +40,10 @@ namespace Vaxtrack.Controllers
                 var updatedUserResponse = await _userService.UpdateUserAsync(updateUserRequestDto);
                 return Ok(updatedUserResponse);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "UserController: UpdateUserAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
 
@@ -51,9 +55,10 @@ namespace Vaxtrack.Controllers
                 List<UserProfileDataDto> allUsers = await _userService.GetAllUsersAsync();
                 return Ok(allUsers);
             }
-            catch (ArgumentException ex)
-            {                
-                return BadRequest(ex.Message);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: GetAllUsersAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
 
@@ -65,9 +70,10 @@ namespace Vaxtrack.Controllers
                 var userProfileData = await _userService.GetUserProfileDataAsync(userId);
                 return Ok(userProfileData);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "UserController: GetUserProfileDataAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
 
@@ -79,9 +85,10 @@ namespace Vaxtrack.Controllers
                 await _userService.DeleteUserAsync(userId);
                 return NoContent();
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                _logger.LogError(ex, "UserController: DeleteUserAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
             }
         }
     }

@@ -21,6 +21,9 @@ namespace Vaxtrack.Interfaces
         // get bookings by hospital id
         Task<List<BookingProfileDataDto>?> GetBookingsByHospitalIdAsync(string hospitalId);
 
+        // get all bookings
+        Task<List<BookingProfileDataDto>?> GetAllBookingsAsync();
+
         // book for dose 2
         Task<BookDose2ResponseDto> BookDose2Async(BookDose2RequestDto bookDose2Request);
 

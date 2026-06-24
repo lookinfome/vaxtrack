@@ -8,6 +8,7 @@ namespace Vaxtrack.Dtos.BookingDtos
         public string UserUid {get; set;} = "";
         public DateTime Dose2RequestedDateTime {get; set;}
         public string Dose2HospitalUid {get; set;} = "";
+        public int Dose2SlotNumber {get; set;}
         public bool IsDose2Completed {get; set;}
     }
 }

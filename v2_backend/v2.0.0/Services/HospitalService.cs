@@ -2,37 +2,72 @@ using Vaxtrack.Interfaces;
 using Vaxtrack.Interfaces.RepositoryInterfaces;
 using Vaxtrack.Dtos.HospitalDtos;
 using Vaxtrack.Models;
+using Vaxtrack.Interfaces.UtilityInterfaces;
 
 namespace Vaxtrack.Services
 {
-    public class HospitalService: IHospitalService
+    public class HospitalService : IHospitalService
     {
         private readonly IHospitalRepository _hospitalRepository;
-        
-        public HospitalService(IHospitalRepository hospitalRepository)
+        private readonly IUtilityService _utilityService;
+        private readonly ILogger<HospitalService> _logger;
+
+        public HospitalService(IHospitalRepository hospitalRepository, IUtilityService utilityService, ILogger<HospitalService> logger)
         {
-            _hospitalRepository = hospitalRepository;   
+            _hospitalRepository = hospitalRepository;
+            _utilityService = utilityService;
+            _logger = logger;
         }
 
         public async Task<CreateHospitalResponseDto> CreateHospitalAsync(CreateHospitalRequestDto createHospitalRequest)
         {
+            /*
+             * Create Logic:
+             * -------------
+             * Registers a new hospital with only the name required at creation.
+             * Contact fields (address, phone, email, pin code) start empty and are
+             * populated via UpdateHospitalAsync after registration.
+             * TotalSlots and SlotsAvailable both default to 50 — admin adjusts
+             * total capacity via UpdateTotalSlotsAsync.
+             * HospitalId (readable) and HospitalUid (GUID) are system-generated.
+             *
+             * Edge cases blocked:
+             *   - Null request → ArgumentNullException thrown before entering try.
+             */
+
             ArgumentNullException.ThrowIfNull(createHospitalRequest);
 
             try
             {
-                var newHospital = MapHospitalCreateReqeustToHospitalModel(createHospitalRequest);
+                var newHospital = await MapHospitalCreateRequestToHospitalModel(createHospitalRequest);
                 var createdHospital = await _hospitalRepository.CreateHospitalAsync(newHospital);
-
-                return MapToCreatedHospitalResponseDto(createdHospital);
+                return MapToCreateHospitalResponseDto(createdHospital);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                throw new Exception($"HospitalService: CreateHospitalAsync - {ex}");
+                _logger.LogError(ex, "HospitalService: CreateHospitalAsync - {Message}", ex.Message);
+                throw new Exception($"HospitalService: CreateHospitalAsync - {ex.Message}", ex);
             }
         }
 
         public async Task<UpdateHospitalResponseDto> UpdateHospitalAsync(UpdateHospitalRequestDto updateHospitalRequest)
         {
+            /*
+             * Update Logic:
+             * -------------
+             * Updates a hospital's contact details. The following fields are mutable:
+             *   HospitalAddress, HospitalPinCode, HospitalPhoneNumber, HospitalEmail.
+             *
+             * The following fields are intentionally immutable via this method:
+             *   HospitalId (primary key), HospitalUid (system GUID), HospitalName,
+             *   TotalSlots (use UpdateTotalSlotsAsync), SlotsAvailable (managed by booking flow),
+             *   RegisteredDate.
+             *
+             * Edge cases blocked:
+             *   - Null request       → ArgumentNullException thrown before entering try.
+             *   - Hospital not found → throws (includes soft-deleted hospitals, which are excluded from lookup).
+             */
+
             ArgumentNullException.ThrowIfNull(updateHospitalRequest);
 
             try
@@ -40,67 +75,107 @@ namespace Vaxtrack.Services
                 string hospitalId = updateHospitalRequest.HospitalId;
                 var foundHospital = await _hospitalRepository.GetHospitalByIdAsync(hospitalId);
 
-                if(foundHospital == null)
-                {
-                    throw new Exception($"HospitalService: UpdateHospitalAsync - hospital {hospitalId} not found!");
-                }
+                if (foundHospital is null)
+                    throw new Exception($"HospitalService: UpdateHospitalAsync - hospital {hospitalId} not found");
 
-                var mapFoundHospital = MapHospitalUpdateRequestDtoToHospitalModel(foundHospital, updateHospitalRequest);
-                var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(mapFoundHospital);
-
+                var mappedHospital = MapHospitalForUpdate(foundHospital, updateHospitalRequest);
+                var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(mappedHospital);
                 return MapToUpdateHospitalResponseDto(updatedHospital);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                throw new Exception($"{ex}");
+                _logger.LogError(ex, "HospitalService: UpdateHospitalAsync - {Message}", ex.Message);
+                throw new Exception($"HospitalService: UpdateHospitalAsync - {ex.Message}", ex);
             }
         }
 
         public async Task<int> UpdateTotalSlotsAsync(string hospitalId, int totalSlots)
         {
+            /*
+             * Update Total Slots Logic:
+             * -------------------------
+             * Sets the maximum vaccination capacity for a hospital.
+             * If the new total is less than the current SlotsAvailable, SlotsAvailable is
+             * clamped down to match — prevents available count from exceeding total capacity.
+             *
+             * Edge cases blocked:
+             *   - Null hospitalId     → ArgumentNullException thrown before entering try.
+             *   - Negative totalSlots → throws (capacity cannot be negative).
+             *   - Hospital not found  → throws.
+             *   - newTotal < SlotsAvailable → SlotsAvailable clamped to newTotal automatically.
+             */
+
             ArgumentNullException.ThrowIfNull(hospitalId);
 
             try
             {
+                if (totalSlots < 0)
+                    throw new Exception($"HospitalService: UpdateTotalSlotsAsync - total slots cannot be negative");
+
                 var foundHospital = await _hospitalRepository.GetHospitalByIdAsync(hospitalId);
 
-                if(foundHospital == null)
-                {
-                    throw new Exception($"HospitalService: UpdateTotalSlotsAsync - hospital {hospitalId} not found!");
-                }
+                if (foundHospital is null)
+                    throw new Exception($"HospitalService: UpdateTotalSlotsAsync - hospital {hospitalId} not found");
 
-                var mapFoundHospital = MapHospitalUpdateRequestDtoToHospitalModel(foundHospital, null, null, totalSlots);
-                var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(mapFoundHospital);
+                foundHospital.TotalSlots = totalSlots;
 
+                // If new total is lower than what's currently shown as available, clamp available down
+                if (foundHospital.SlotsAvailable > totalSlots)
+                    foundHospital.SlotsAvailable = totalSlots;
+
+                foundHospital.UpdatedDate = DateTime.UtcNow;
+                var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(foundHospital);
                 return updatedHospital.TotalSlots;
             }
             catch (Exception ex)
             {
-                throw new Exception($"{ex}");
+                _logger.LogError(ex, "HospitalService: UpdateTotalSlotsAsync - {Message}", ex.Message);
+                throw new Exception($"HospitalService: UpdateTotalSlotsAsync - {ex.Message}", ex);
             }
         }
 
         public async Task<int> UpdateAvailableSlotsAsync(string hospitalId, int availableSlots)
         {
+            /*
+             * Update Available Slots Logic:
+             * ------------------------------
+             * Adjusts the hospital's available slot count by a DELTA, not an absolute value.
+             * Callers pass -1 to consume a slot (booking created) and +1 to free a slot
+             * (booking canceled or deleted).
+             *
+             * Edge cases blocked:
+             *   - Null hospitalId                          → ArgumentNullException thrown before entering try.
+             *   - Hospital not found                       → throws.
+             *   - Result would go below 0 (over-booking)  → throws (slots cannot be negative).
+             *   - Result would exceed TotalSlots           → throws (cannot free more slots than capacity allows).
+             */
+
             ArgumentNullException.ThrowIfNull(hospitalId);
 
             try
             {
                 var foundHospital = await _hospitalRepository.GetHospitalByIdAsync(hospitalId);
 
-                if(foundHospital == null)
-                {
-                    throw new Exception($"HospitalService: UpdateTotalSlotsAsync - hospital {hospitalId} not found!");
-                }
+                if (foundHospital is null)
+                    throw new Exception($"HospitalService: UpdateAvailableSlotsAsync - hospital {hospitalId} not found");
 
-                var mapFoundHospital = MapHospitalUpdateRequestDtoToHospitalModel(foundHospital, null, null, null, availableSlots);
-                var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(mapFoundHospital);
+                int newAvailable = foundHospital.SlotsAvailable + availableSlots;
 
+                if (newAvailable < 0)
+                    throw new Exception($"HospitalService: UpdateAvailableSlotsAsync - hospital {hospitalId} would have negative available slots");
+
+                if (newAvailable > foundHospital.TotalSlots)
+                    throw new Exception($"HospitalService: UpdateAvailableSlotsAsync - hospital {hospitalId} available slots cannot exceed total slots ({foundHospital.TotalSlots})");
+
+                foundHospital.SlotsAvailable = newAvailable;
+                foundHospital.UpdatedDate = DateTime.UtcNow;
+                var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(foundHospital);
                 return updatedHospital.SlotsAvailable;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                throw new Exception($"{ex}");
+                _logger.LogError(ex, "HospitalService: UpdateAvailableSlotsAsync - {Message}", ex.Message);
+                throw new Exception($"HospitalService: UpdateAvailableSlotsAsync - {ex.Message}", ex);
             }
         }
 
@@ -112,16 +187,15 @@ namespace Vaxtrack.Services
             {
                 var foundHospital = await _hospitalRepository.GetHospitalByIdAsync(hospitalId);
 
-                if(foundHospital == null)
-                {
-                    throw new Exception($"HospitalService: UpdateTotalSlotsAsync - hospital {hospitalId} not found!");
-                }
+                if (foundHospital is null)
+                    throw new Exception($"HospitalService: GetHospitalByIdAsync - hospital {hospitalId} not found");
 
-                return MapToHospitalProfileDataDto(foundHospital);                
+                return MapToHospitalProfileDataDto(foundHospital);
             }
             catch (Exception ex)
             {
-                throw new Exception($"{ex}");
+                _logger.LogError(ex, "HospitalService: GetHospitalByIdAsync - {Message}", ex.Message);
+                throw new Exception($"HospitalService: GetHospitalByIdAsync - {ex.Message}", ex);
             }
         }
 
@@ -129,60 +203,76 @@ namespace Vaxtrack.Services
         {
             try
             {
-                List<HospitalProfileDataDto> hospitalList = new List<HospitalProfileDataDto>();
-
                 var foundHospitalList = await _hospitalRepository.GetAllHospitalDetailsAsync();
 
-                if(foundHospitalList == null)
-                {
-                    throw new Exception($"HospitalService: GetAllHospitalAsync - no hospitals found!");
-                }
+                if (foundHospitalList is null)
+                    throw new Exception("HospitalService: GetAllHospitalsAsync - no hospitals found");
 
-                foreach(var hospital in foundHospitalList)
-                {
+                List<HospitalProfileDataDto> hospitalList = [];
+                foreach (var hospital in foundHospitalList)
                     hospitalList.Add(MapToHospitalProfileDataDto(hospital));
-                }
 
                 return hospitalList;
             }
             catch (Exception ex)
             {
-                throw new Exception($"{ex}");
+                _logger.LogError(ex, "HospitalService: GetAllHospitalsAsync - {Message}", ex.Message);
+                throw new Exception($"HospitalService: GetAllHospitalsAsync - {ex.Message}", ex);
             }
         }
 
         public async Task DeleteHospitalAsync(string hospitalId)
         {
+            /*
+             * Delete Logic:
+             * -------------
+             * Soft-deletes a hospital by setting IsDeleted = true. The record remains
+             * in the database but is excluded from all future lookups.
+             * Once deleted, any subsequent call with the same hospitalId returns "not found"
+             * because the repository filters out soft-deleted records.
+             *
+             * Edge cases blocked:
+             *   - Null hospitalId     → ArgumentNullException thrown before entering try.
+             *   - Hospital not found  → throws (includes already-deleted hospitals).
+             *
+             * Note: active bookings referencing this hospital are NOT checked before deletion.
+             * Existing bookings will retain the hospitalId but UpdateAvailableSlotsAsync will
+             * fail on any subsequent slot adjustment for this hospital.
+             */
+
             ArgumentNullException.ThrowIfNull(hospitalId);
 
             try
             {
                 var foundHospital = await _hospitalRepository.GetHospitalByIdAsync(hospitalId);
 
-                if(foundHospital == null)
-                {
-                    throw new Exception($"HospitalService: DeleteHospitalAsync - hospital {hospitalId} not found!");
-                }
+                if (foundHospital is null)
+                    throw new Exception($"HospitalService: DeleteHospitalAsync - hospital {hospitalId} not found");
 
-                var mappedFoundHospital = MapHospitalUpdateRequestDtoToHospitalModel(foundHospital, null, true, null, null);
-                await _hospitalRepository.UpdateHospitalAsync(mappedFoundHospital); 
+                foundHospital.IsDeleted = true;
+                foundHospital.RemovedDate = DateTime.UtcNow;
+                foundHospital.UpdatedDate = DateTime.UtcNow;
+                await _hospitalRepository.UpdateHospitalAsync(foundHospital);
             }
             catch (Exception ex)
             {
-                throw new Exception($"{ex}");
+                _logger.LogError(ex, "HospitalService: DeleteHospitalAsync - {Message}", ex.Message);
+                throw new Exception($"HospitalService: DeleteHospitalAsync - {ex.Message}", ex);
             }
         }
 
-        // utility methods
+        // ── private mapping helpers ───────────────────────────────────────────────
 
-        private HospitalModel MapHospitalCreateReqeustToHospitalModel(CreateHospitalRequestDto createHospitalRequest)
+        private async Task<HospitalModel> MapHospitalCreateRequestToHospitalModel(CreateHospitalRequestDto createHospitalRequest)
         {
             var timestamp = DateTime.UtcNow;
+            var guid = await _utilityService.GenerateGuidAsync();
+            var uniqueId = await _utilityService.GenerateUniqueIdAsync(createHospitalRequest.HospitalName);
 
             return new HospitalModel
             {
-                HospitalId = GenerateHospitalId(createHospitalRequest.HospitalName),
-                HospitalUid = Guid.NewGuid().ToString(),
+                HospitalId = uniqueId,
+                HospitalUid = guid,
                 HospitalName = createHospitalRequest.HospitalName,
                 HospitalAddress = "",
                 HospitalPhoneNumber = "",
@@ -194,85 +284,60 @@ namespace Vaxtrack.Services
                 UpdatedDate = timestamp
             };
         }
-        private HospitalModel MapHospitalUpdateRequestDtoToHospitalModel(HospitalModel foundHospital, UpdateHospitalRequestDto? updateHospitalRequestDto = null, bool? isDeleted = null, int? totalSlots = null, int? availableSlots = null)
+
+        private static HospitalModel MapHospitalForUpdate(HospitalModel foundHospital, UpdateHospitalRequestDto updateHospitalRequest)
         {
-            var timestamp = DateTime.UtcNow;
-
-            if(updateHospitalRequestDto != null && isDeleted == null && totalSlots == null && availableSlots == null)
-            {
-                foundHospital.HospitalAddress = updateHospitalRequestDto.HospitalAddress;
-                foundHospital.HospitalPinCode = updateHospitalRequestDto.HospitalPinCode; 
-                foundHospital.HospitalPhoneNumber = updateHospitalRequestDto.HospitalPhoneNumber;
-                foundHospital.HospitalEmail = updateHospitalRequestDto.HospitalEmail;
-            }
-
-            if(isDeleted != null)
-            {
-                foundHospital.RemovedDate = timestamp;
-                foundHospital.IsDeleted = true;   
-            }
-
-            if(totalSlots != null)
-            {
-                foundHospital.TotalSlots = totalSlots.Value;
-            }
-
-            if(availableSlots != null)
-            {
-                foundHospital.SlotsAvailable = availableSlots.Value;   
-            }
-
-            foundHospital.UpdatedDate = timestamp;
+            foundHospital.HospitalAddress = updateHospitalRequest.HospitalAddress;
+            foundHospital.HospitalPinCode = updateHospitalRequest.HospitalPinCode;
+            foundHospital.HospitalPhoneNumber = updateHospitalRequest.HospitalPhoneNumber;
+            foundHospital.HospitalEmail = updateHospitalRequest.HospitalEmail;
+            foundHospital.UpdatedDate = DateTime.UtcNow;
             return foundHospital;
         }
-        private CreateHospitalResponseDto MapToCreatedHospitalResponseDto(HospitalModel createdHospital)
-        {
 
+        private static CreateHospitalResponseDto MapToCreateHospitalResponseDto(HospitalModel hospital)
+        {
             return new CreateHospitalResponseDto
             {
-                HospitalId = createdHospital.HospitalId,
-                HospitalName = createdHospital.HospitalName,
-                HospitalAddress = createdHospital.HospitalAddress,
-                HospitalPinCode = createdHospital.HospitalPinCode,
-                HospitalPhoneNumber = createdHospital.HospitalPhoneNumber,
-                HospitalEmail = createdHospital.HospitalEmail,
-                TotalSlots = createdHospital.TotalSlots,
-                SlotsAvailable = createdHospital.SlotsAvailable,
-                RegisteredDate = createdHospital.RegisteredDate
+                HospitalId = hospital.HospitalId,
+                HospitalName = hospital.HospitalName,
+                HospitalAddress = hospital.HospitalAddress,
+                HospitalPinCode = hospital.HospitalPinCode,
+                HospitalPhoneNumber = hospital.HospitalPhoneNumber,
+                HospitalEmail = hospital.HospitalEmail,
+                TotalSlots = hospital.TotalSlots,
+                SlotsAvailable = hospital.SlotsAvailable,
+                RegisteredDate = hospital.RegisteredDate
             };
         }
-        private HospitalProfileDataDto MapToHospitalProfileDataDto(HospitalModel hospitalDetails)
+
+        private static HospitalProfileDataDto MapToHospitalProfileDataDto(HospitalModel hospital)
         {
             return new HospitalProfileDataDto
             {
-                HospitalId = hospitalDetails.HospitalId,
-                HospitalName = hospitalDetails.HospitalName,
-                HospitalAddress = hospitalDetails.HospitalAddress,
-                HospitalEmail = hospitalDetails.HospitalEmail,
-                HospitalPhoneNumber = hospitalDetails.HospitalPhoneNumber,
-                HospitalPinCode = hospitalDetails.HospitalPinCode,
-                TotalSlots = hospitalDetails.TotalSlots,
-                SlotsAvailable = hospitalDetails.SlotsAvailable,
-                RegisteredDate = hospitalDetails.RegisteredDate,
-                UpdatedDate = hospitalDetails.UpdatedDate,
-                RemovedDate = hospitalDetails.RemovedDate
+                HospitalId = hospital.HospitalId,
+                HospitalName = hospital.HospitalName,
+                HospitalAddress = hospital.HospitalAddress,
+                HospitalPinCode = hospital.HospitalPinCode,
+                HospitalPhoneNumber = hospital.HospitalPhoneNumber,
+                HospitalEmail = hospital.HospitalEmail,
+                TotalSlots = hospital.TotalSlots,
+                SlotsAvailable = hospital.SlotsAvailable,
+                RegisteredDate = hospital.RegisteredDate,
+                UpdatedDate = hospital.UpdatedDate
             };
         }
-        private UpdateHospitalResponseDto MapToUpdateHospitalResponseDto(HospitalModel updatedHospital)
+
+        private static UpdateHospitalResponseDto MapToUpdateHospitalResponseDto(HospitalModel hospital)
         {
             return new UpdateHospitalResponseDto
             {
-                HospitalId = updatedHospital.HospitalId,
-                HospitalAddress = updatedHospital.HospitalAddress,
-                HospitalPinCode = updatedHospital.HospitalPinCode,
-                HospitalEmail = updatedHospital.HospitalEmail,
-                HospitalPhoneNumber = updatedHospital.HospitalPhoneNumber
+                HospitalId = hospital.HospitalId,
+                HospitalAddress = hospital.HospitalAddress,
+                HospitalPinCode = hospital.HospitalPinCode,
+                HospitalPhoneNumber = hospital.HospitalPhoneNumber,
+                HospitalEmail = hospital.HospitalEmail
             };
-        }   
-        private string GenerateHospitalId(string hospitalName)
-        {
-            return $"{hospitalName.ToString().Substring(0, 3)}_{Guid.NewGuid().ToString().Substring(0, 8)}";
         }
     }
-
 }

@@ -6,9 +6,6 @@ namespace Vaxtrack.Dtos.BookingDtos
 {
     public class CreateBookingRequestDto
     {
-        [Required(ErrorMessage = "booking id is required")]
-        public string BookingId {get; set;} = "";
-
         [Required(ErrorMessage = "user id is required")]
         public string UserUid {get; set;} = "";
 

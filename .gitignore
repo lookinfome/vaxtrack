@@ -32,3 +32,8 @@ appsettings.Development.json
 # Build outputs
 dist/
 build/
+
+.fake
+
+# Logs
+Logs/
