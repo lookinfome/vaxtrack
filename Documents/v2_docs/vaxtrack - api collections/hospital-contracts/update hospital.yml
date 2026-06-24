@@ -10,11 +10,11 @@ http:
     type: json
     data: |-
       {
-        "hospitalid": "Sun_b5826884",
-        "hospitaladdress": "New Delhi, Delhi, India",
-        "hospitalPhonenumber": "8090453287",
-        "hospitalemail": "rub@gmail.com",
-        "hospitalPinCode": "658000"
+        "hospitalid": "CityCare-17-e5",
+        "hospitaladdress": "14, MG Road, Bangalore, Karnataka",
+        "hospitalPhonenumber": "08041234999",
+        "hospitalemail": "contact@citycarehosp.com",
+        "hospitalPinCode": "560001"
       }
   auth: inherit
 

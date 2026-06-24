@@ -1,0 +1,17 @@
+info:
+  name: is booking exists
+  type: http
+  seq: 10
+
+# Checks if a booking record exists by BookingId.
+# Returns: true (booking found and not deleted) or false.
+http:
+  method: GET
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/isbookingexists/Book_22222222-2222-2222-2222-222222222222-17-a1"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

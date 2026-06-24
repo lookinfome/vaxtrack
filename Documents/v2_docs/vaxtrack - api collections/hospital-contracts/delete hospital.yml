@@ -5,7 +5,7 @@ info:
 
 http:
   method: DELETE
-  url: "{{baseURL}}/api/vaxtrack/v1/hospital/deletehospital/Rub_51f418f6"
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/deletehospital/Apollo-17-a7"
   auth: inherit
 
 settings:

@@ -1,0 +1,24 @@
+info:
+  name: create booking
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/createbooking"
+  body:
+    type: json
+    data: |-
+      {
+        "userUid": "22222222-2222-2222-2222-222222222222",
+        "dose1RequestedDateTime": "2026-07-05T10:00:00",
+        "dose1SlotNumber": 5,
+        "dose1HospitalUid": "CityCare-17-e5"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -10,13 +10,13 @@ http:
     type: json
     data: |-
       {
-        "userid": "Shubham-17-09",
-        "firstname": "Shubham M",
-        "lastname": "Kashyap",
-        "usergender": "Male",
-        "userphone": "7865898897",
-        "useraddress": "Brookefield, Banagalore, Karnataka, India",
-        "userpincode": "560210",
+        "userid": "Priya-17-b2",
+        "firstname": "Priya",
+        "lastname": "Sharma",
+        "usergender": "Female",
+        "userphone": "8765432109",
+        "useraddress": "7, 3rd Cross, Koramangala 5th Block, Bangalore",
+        "userpincode": "560095",
         "profilepicturepath": ""
       }
   auth: inherit

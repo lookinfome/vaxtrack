@@ -1,0 +1,36 @@
+info:
+  name: update booking
+  type: http
+  seq: 3
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/updatebooking"
+  body:
+    type: json
+    data: |-
+      {
+        "bookingId": "Book_22222222-2222-2222-2222-222222222222-17-a1",
+        "userUid": "22222222-2222-2222-2222-222222222222",
+        "dose1RequestedDateTime": "2026-07-12T10:00:00",
+        "dose1SlotNumber": 6,
+        "dose1HospitalUid": "CityCare-17-e5",
+        "isDose1Completed": false,
+        "dose1CompletedDateTime": null,
+        "isD1RequestCanceled": false,
+        "dose2RequestedDateTime": null,
+        "dose2SlotNumber": 0,
+        "dose2HospitalUid": "",
+        "isDose2Completed": false,
+        "dose2CompletedDateTime": null,
+        "isD2RequestCanceled": false,
+        "isVaccinationCompleted": false,
+        "vaccinationCompletedDateTime": null
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,17 @@
+info:
+  name: delete booking
+  type: http
+  seq: 11
+
+# Soft-deletes the booking and restores the hospital slot for any pending (non-administered,
+# non-canceled) dose. Returns 204 No Content on success.
+http:
+  method: DELETE
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/deletebooking/Book_22222222-2222-2222-2222-222222222222-17-a1"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

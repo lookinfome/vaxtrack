@@ -1,0 +1,25 @@
+info:
+  name: book dose2
+  type: http
+  seq: 2
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/bookdose2"
+  body:
+    type: json
+    data: |-
+      {
+        "bookingId": "Book_22222222-2222-2222-2222-222222222222-17-a1",
+        "userUid": "22222222-2222-2222-2222-222222222222",
+        "dose2HospitalUid": "CityCare-17-e5",
+        "dose2SlotNumber": 8,
+        "dose2RequestedDateTime": "2026-08-10T10:00:00"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
