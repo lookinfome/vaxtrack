@@ -10,8 +10,8 @@ namespace Vaxtrack.Dtos.UserDtos
         public string UserPhone { get; set; } = "";
         public string UserAddress { get; set; } = "";
         public string UserPinCode { get; set; } = "";
-        public bool UserRole { get; set; }
         public string ProfilePicturePath { get; set; } = "";
+        public bool UserRole { get; set; } = false;
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

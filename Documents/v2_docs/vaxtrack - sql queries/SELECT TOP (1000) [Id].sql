@@ -1,0 +1,8 @@
+SELECT TOP (1000) [Id]
+      ,[UserUid]
+      ,[RoleTag]
+      ,[ContextId]
+      ,[IsActive]
+      ,[CreatedAt]
+      ,[UpdatedAt]
+  FROM [vaxtrack_sqlserver].[dbo].[UserRoleMappings]

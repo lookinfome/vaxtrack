@@ -54,6 +54,8 @@ builder.Services.AddScoped<IHospitalRepository, HospitalRepository>();
 builder.Services.AddScoped<IHospitalService, HospitalService>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IUserRoleMappingRepository, UserRoleMappingRepository>();
+builder.Services.AddScoped<IUserRoleMappingService, UserRoleMappingService>();
 builder.Services.AddScoped<IUtilityService, UtilityService>();
 
 var app = builder.Build();
@@ -86,5 +88,6 @@ public class VaxtrackDbContext : DbContext
 
     public DbSet<UserModel> Users { get; set; }
     public DbSet<HospitalModel> Hospitals { get; set; }
-    public DbSet<BookingModel> Bookings {get; set;}
+    public DbSet<BookingModel> Bookings { get; set; }
+    public DbSet<UserRoleMappingModel> UserRoleMappings { get; set; }
 }
