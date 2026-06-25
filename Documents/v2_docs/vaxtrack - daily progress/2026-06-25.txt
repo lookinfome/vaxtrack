@@ -433,6 +433,100 @@ DATABASE MIGRATIONS APPLIED TODAY
         UsedAt    datetime2 NULL
     )
 
+────────────────────────────────────────────────────────────────────────────────
+TASK 9 — Hospital-Admin Role: Gap Fix
+────────────────────────────────────────────────────────────────────────────────
+
+Context:
+  The UserRoleMappings table supports scoped roles via (RoleTag, ContextId).
+  A user with RoleTag = "hospital-admin" and ContextId = HospitalId manages
+  that one specific hospital. However, no controller or service was checking
+  for this role — it existed in the DB but was entirely inert. A hospital-admin
+  was treated identically to a normal user.
+
+Gaps fixed (4):
+  1. ApproveBookingsAsync — was [Authorize(Roles="admin")], blocked hospital-admin.
+     Now [Authorize]. Service checks: is the booking's pending dose at a hospital
+     this caller manages? Dose 1 → Dose1HospitalUid, Dose 2 → Dose2HospitalUid.
+
+  2. UpdateHospitalAsync — was admin-only. Now any authenticated user can call it;
+     service checks hospital-admin role scoped to that HospitalId → 403 if not admin
+     and not hospital-admin for that hospital.
+
+  3. UpdateTotalSlotsAsync — same pattern as above.
+
+  4. UpdateAvailableSlotsAsync — same pattern, BUT this method is also called
+     internally by BookingService (slot reservation/release on create/cancel/delete).
+     Those internal calls bypass the auth check via optional default params
+     (callerIsAdmin = true). Controller calls always pass real caller values.
+
+Authorization pattern used (consistent with ownership checks elsewhere):
+  Service receives callerUserUid + callerIsAdmin from the controller.
+  If callerIsAdmin → allow.
+  Else → IUserRoleMappingRepository.IsUserInRoleAsync(callerUserUid, "hospital-admin", hospitalId).
+  If false → throw UnauthorizedAccessException → controller returns 403 Forbid.
+
+ContextId convention confirmed:
+  HospitalId (readable PK) is used as ContextId in UserRoleMappings.
+  This is consistent with DeleteHospitalAsync cascade (already used HospitalId)
+  and with how bookings store Dose1HospitalUid / Dose2HospitalUid (which are
+  HospitalId values despite the "Uid" name in the field).
+
+Modified files:
+  Interfaces/IBookingService.cs          — added callerUserUid + callerIsAdmin
+                                           to ApproveBookingsAsync signature
+  Services/BookingService.cs             — injected IUserRoleMappingRepository;
+                                           added hospital-admin scoped check in
+                                           ApproveBookingsAsync; restructured
+                                           dose-selection logic into bool flags
+                                           so the auth check targets the right hospital
+  Controllers/BookingController.cs       — ApproveBookingsAsync: removed
+                                           [Authorize(Roles="admin")], passes
+                                           CallerUserUid/CallerIsAdmin, catches
+                                           UnauthorizedAccessException → 403
+  Interfaces/IHospitalService.cs         — added callerUserUid + callerIsAdmin to
+                                           UpdateHospitalAsync, UpdateTotalSlotsAsync;
+                                           UpdateAvailableSlotsAsync uses optional
+                                           params with defaults for internal calls
+  Services/HospitalService.cs            — added hospital-admin scoped check to all
+                                           three update methods; UpdateAvailableSlotsAsync
+                                           bypasses check when callerIsAdmin default is true
+  Controllers/HospitalController.cs      — added CallerUserUid/CallerIsAdmin helpers;
+                                           removed [Authorize(Roles="admin")] from the
+                                           three update methods; passes caller params;
+                                           catches UnauthorizedAccessException → 403
+
+
+────────────────────────────────────────────────────────────────────────────────
+HOSPITAL-ADMIN SCOPE — FINAL STATE
+────────────────────────────────────────────────────────────────────────────────
+
+Role definition: RoleTag = "hospital-admin", ContextId = HospitalId
+Scoped to ONE hospital. Does NOT make the user a platform admin.
+
+ #  Action                                     Allowed?  Notes
+──  ──────────────────────────────────────────  ──────── ──────────────────────────────────────────────
+ 1  Everything a normal user can do (rows 1-31) YES       Inherits full normal-user scope
+32  Approve bookings at their hospital          YES       Scoped check: booking's pending dose must be
+                                                          at the hospital they manage → 403 otherwise
+33  Update their hospital's contact details     YES       Scoped check: HospitalId must match ContextId
+34  Update their hospital's total slot capacity YES       Scoped check: same
+35  Adjust their hospital's available slots     YES       Scoped check: same; internal booking-flow
+                                                          calls bypass this check automatically
+36  View all bookings at their hospital         YES       GET /booking/getbookingsbyhospitalid/{id}
+                                                          was already [Authorize] only — no change needed
+37  Approve bookings at another hospital        NO        Scoped check → 403
+38  Update another hospital's details           NO        Scoped check → 403
+39  Update another hospital's slot capacity     NO        Scoped check → 403
+40  Create a new hospital                       NO        POST /hospital/createhospital — admin only
+41  Delete any hospital                         NO        DELETE /hospital/deletehospital — admin only
+42  View all bookings (platform-wide)           NO        GET /booking/getallbookings — admin only
+43  Admin-update a booking (all fields)         NO        PUT /booking/updatebooking — admin only
+44  Delete any booking                          NO        DELETE /booking/deletebooking — admin only
+45  View all users                              NO        GET /user/getallusers — admin only
+46  Delete any user                             NO        DELETE /user/deleteuser — admin only
+47  Any role-mapping operation                  NO        Entire UserRoleMappingController — admin only
+
 ================================================================================
 END OF LOG
 ================================================================================

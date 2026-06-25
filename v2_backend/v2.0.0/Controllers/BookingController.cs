@@ -82,14 +82,18 @@ namespace Vaxtrack.Controllers
             }
         }
 
-        [Authorize(Roles = "admin")]
+        // Platform admin OR hospital-admin scoped to the booking's hospital
         [HttpPut("{bookingId}")]
         public async Task<ActionResult<BookingProfileDataDto>> ApproveBookingsAsync(string bookingId)
         {
             try
             {
-                var approvedBooking = await _bookingService.ApproveBookingsAsync(bookingId);
+                var approvedBooking = await _bookingService.ApproveBookingsAsync(bookingId, CallerUserUid, CallerIsAdmin);
                 return Ok(approvedBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {

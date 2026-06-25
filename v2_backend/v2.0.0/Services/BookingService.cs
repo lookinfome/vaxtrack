@@ -11,17 +11,20 @@ namespace Vaxtrack.Services
         private readonly IBookingRepository _bookingRepository;
         private readonly IUtilityService _utilityService;
         private readonly IHospitalService _hospitalService;
+        private readonly IUserRoleMappingRepository _roleMappingRepository;
         private readonly ILogger<BookingService> _logger;
 
         public BookingService(
             IBookingRepository bookingRepository,
             IUtilityService utilityService,
             IHospitalService hospitalService,
+            IUserRoleMappingRepository roleMappingRepository,
             ILogger<BookingService> logger)
         {
             _bookingRepository = bookingRepository;
             _utilityService = utilityService;
             _hospitalService = hospitalService;
+            _roleMappingRepository = roleMappingRepository;
             _logger = logger;
         }
 
@@ -125,12 +128,19 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<BookingProfileDataDto> ApproveBookingsAsync(string bookingId)
+        public async Task<BookingProfileDataDto> ApproveBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin)
         {
             /*
              * Approve Logic:
              * --------------
-             * "Approve" means a hospital admin confirms that a dose was physically administered to the user.
+             * "Approve" means a hospital staff member confirms that a dose was physically
+             * administered to the user.
+             *
+             * Authorization:
+             *   - Platform admin: can approve any booking.
+             *   - Hospital-admin: can approve bookings only at the hospital they manage
+             *     (ContextId = HospitalId in UserRoleMappings). The check is scoped to
+             *     whichever hospital is handling the pending dose — Dose 1 or Dose 2.
              *
              * Priority order:
              *   1. If Dose 1 is pending (not completed, not canceled) → approve Dose 1.
@@ -143,9 +153,10 @@ namespace Vaxtrack.Services
              * Edge cases blocked:
              *   - Booking not found                            → throws
              *   - Vaccination already fully completed          → throws (nothing left to approve)
-             *   - Dose 1 canceled                             → falls to else branch  → throws
-             *   - Dose 1 complete but Dose 2 not yet booked   → falls to else branch  → throws
-             *   - Dose 2 already canceled or completed         → falls to else branch  → throws
+             *   - Caller not admin and not hospital-admin      → throws UnauthorizedAccessException
+             *   - Dose 1 canceled and no Dose 2 pending       → throws (nothing to approve)
+             *   - Dose 1 complete but Dose 2 not yet booked   → throws (nothing to approve)
+             *   - Dose 2 already canceled or completed        → throws (nothing to approve)
              */
 
             ArgumentNullException.ThrowIfNull(bookingId);
@@ -160,33 +171,54 @@ namespace Vaxtrack.Services
                 if (foundBooking.IsVaccinationCompleted)
                     throw new Exception($"BookingService: ApproveBookingsAsync - booking {bookingId} vaccination is already fully completed");
 
+                // Determine which dose is approvable before running the auth check,
+                // so the scoped hospital-admin check targets the right hospital.
+                bool approvingDose1 = !foundBooking.IsDose1Completed && !foundBooking.IsD1RequestCanceled;
+                bool approvingDose2 = foundBooking.IsDose1Completed
+                    && !string.IsNullOrEmpty(foundBooking.Dose2HospitalUid)
+                    && !foundBooking.IsDose2Completed
+                    && !foundBooking.IsD2RequestCanceled;
+
+                if (!approvingDose1 && !approvingDose2)
+                    throw new Exception($"BookingService: ApproveBookingsAsync - booking {bookingId} has no pending dose to approve");
+
+                // Hospital-admin check — scoped to the hospital handling the pending dose
+                if (!callerIsAdmin)
+                {
+                    string relevantHospitalId = approvingDose1
+                        ? foundBooking.Dose1HospitalUid
+                        : foundBooking.Dose2HospitalUid;
+
+                    bool isHospitalAdmin = await _roleMappingRepository.IsUserInRoleAsync(
+                        callerUserUid, "hospital-admin", relevantHospitalId);
+
+                    if (!isHospitalAdmin)
+                        throw new UnauthorizedAccessException(
+                            $"BookingService: ApproveBookingsAsync - caller is not authorized to approve bookings at hospital {relevantHospitalId}");
+                }
+
                 var timestamp = DateTime.UtcNow;
 
-                if (!foundBooking.IsDose1Completed && !foundBooking.IsD1RequestCanceled)
+                if (approvingDose1)
                 {
-                    // Approve Dose 1 — mark it as administered
                     foundBooking.IsDose1Completed = true;
                     foundBooking.Dose1CompletedDateTime = timestamp;
                 }
-                else if (foundBooking.IsDose1Completed
-                    && !string.IsNullOrEmpty(foundBooking.Dose2HospitalUid)
-                    && !foundBooking.IsDose2Completed
-                    && !foundBooking.IsD2RequestCanceled)
+                else
                 {
-                    // Approve Dose 2 — mark it as administered and flag full vaccination complete
                     foundBooking.IsDose2Completed = true;
                     foundBooking.Dose2CompletedDateTime = timestamp;
                     foundBooking.IsVaccinationCompleted = true;
                     foundBooking.VaccinationCompletedDateTime = timestamp;
                 }
-                else
-                {
-                    throw new Exception($"BookingService: ApproveBookingsAsync - booking {bookingId} has no pending dose to approve");
-                }
 
                 foundBooking.ModifiedAt = timestamp;
                 var updatedBooking = await _bookingRepository.UpdateBookingAsync(foundBooking);
                 return MapToBookingProfileDto(updatedBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

@@ -55,7 +55,7 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<UpdateHospitalResponseDto> UpdateHospitalAsync(UpdateHospitalRequestDto updateHospitalRequest)
+        public async Task<UpdateHospitalResponseDto> UpdateHospitalAsync(UpdateHospitalRequestDto updateHospitalRequest, string callerUserUid, bool callerIsAdmin)
         {
             /*
              * Update Logic:
@@ -68,9 +68,15 @@ namespace Vaxtrack.Services
              *   TotalSlots (use UpdateTotalSlotsAsync), SlotsAvailable (managed by booking flow),
              *   RegisteredDate.
              *
+             * Authorization:
+             *   - Platform admin: can update any hospital.
+             *   - Hospital-admin: can update only the hospital they manage
+             *     (ContextId = HospitalId in UserRoleMappings).
+             *
              * Edge cases blocked:
-             *   - Null request       → ArgumentNullException thrown before entering try.
-             *   - Hospital not found → throws (includes soft-deleted hospitals, which are excluded from lookup).
+             *   - Null request            → ArgumentNullException thrown before entering try.
+             *   - Hospital not found      → throws.
+             *   - Caller not authorized   → throws UnauthorizedAccessException.
              */
 
             ArgumentNullException.ThrowIfNull(updateHospitalRequest);
@@ -83,9 +89,23 @@ namespace Vaxtrack.Services
                 if (foundHospital is null)
                     throw new Exception($"HospitalService: UpdateHospitalAsync - hospital {hospitalId} not found");
 
+                if (!callerIsAdmin)
+                {
+                    bool isHospitalAdmin = await _roleMappingRepository.IsUserInRoleAsync(
+                        callerUserUid, "hospital-admin", foundHospital.HospitalId);
+
+                    if (!isHospitalAdmin)
+                        throw new UnauthorizedAccessException(
+                            $"HospitalService: UpdateHospitalAsync - caller is not authorized to update hospital {hospitalId}");
+                }
+
                 var mappedHospital = MapHospitalForUpdate(foundHospital, updateHospitalRequest);
                 var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(mappedHospital);
                 return MapToUpdateHospitalResponseDto(updatedHospital);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -94,7 +114,7 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<int> UpdateTotalSlotsAsync(string hospitalId, int totalSlots)
+        public async Task<int> UpdateTotalSlotsAsync(string hospitalId, int totalSlots, string callerUserUid, bool callerIsAdmin)
         {
             /*
              * Update Total Slots Logic:
@@ -103,10 +123,15 @@ namespace Vaxtrack.Services
              * If the new total is less than the current SlotsAvailable, SlotsAvailable is
              * clamped down to match — prevents available count from exceeding total capacity.
              *
+             * Authorization:
+             *   - Platform admin: can update any hospital's capacity.
+             *   - Hospital-admin: can update capacity only for their own hospital.
+             *
              * Edge cases blocked:
-             *   - Null hospitalId     → ArgumentNullException thrown before entering try.
-             *   - Negative totalSlots → throws (capacity cannot be negative).
-             *   - Hospital not found  → throws.
+             *   - Null hospitalId          → ArgumentNullException thrown before entering try.
+             *   - Negative totalSlots      → throws (capacity cannot be negative).
+             *   - Hospital not found       → throws.
+             *   - Caller not authorized    → throws UnauthorizedAccessException.
              *   - newTotal < SlotsAvailable → SlotsAvailable clamped to newTotal automatically.
              */
 
@@ -122,6 +147,16 @@ namespace Vaxtrack.Services
                 if (foundHospital is null)
                     throw new Exception($"HospitalService: UpdateTotalSlotsAsync - hospital {hospitalId} not found");
 
+                if (!callerIsAdmin)
+                {
+                    bool isHospitalAdmin = await _roleMappingRepository.IsUserInRoleAsync(
+                        callerUserUid, "hospital-admin", foundHospital.HospitalId);
+
+                    if (!isHospitalAdmin)
+                        throw new UnauthorizedAccessException(
+                            $"HospitalService: UpdateTotalSlotsAsync - caller is not authorized to update slots for hospital {hospitalId}");
+                }
+
                 foundHospital.TotalSlots = totalSlots;
 
                 // If new total is lower than what's currently shown as available, clamp available down
@@ -132,6 +167,10 @@ namespace Vaxtrack.Services
                 var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(foundHospital);
                 return updatedHospital.TotalSlots;
             }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "HospitalService: UpdateTotalSlotsAsync - {Message}", ex.Message);
@@ -139,7 +178,7 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<int> UpdateAvailableSlotsAsync(string hospitalId, int availableSlots)
+        public async Task<int> UpdateAvailableSlotsAsync(string hospitalId, int availableSlots, string callerUserUid = "", bool callerIsAdmin = true)
         {
             /*
              * Update Available Slots Logic:
@@ -148,9 +187,16 @@ namespace Vaxtrack.Services
              * Callers pass -1 to consume a slot (booking created) and +1 to free a slot
              * (booking canceled or deleted).
              *
+             * Authorization:
+             *   - Platform admin: can adjust any hospital's available slots.
+             *   - Hospital-admin: can adjust slots only for their own hospital.
+             *   - Internal calls from BookingService use the default params (callerIsAdmin = true)
+             *     and bypass the check — these are system-driven slot adjustments, not user requests.
+             *
              * Edge cases blocked:
              *   - Null hospitalId                          → ArgumentNullException thrown before entering try.
              *   - Hospital not found                       → throws.
+             *   - Caller not authorized                    → throws UnauthorizedAccessException.
              *   - Result would go below 0 (over-booking)  → throws (slots cannot be negative).
              *   - Result would exceed TotalSlots           → throws (cannot free more slots than capacity allows).
              */
@@ -164,6 +210,16 @@ namespace Vaxtrack.Services
                 if (foundHospital is null)
                     throw new Exception($"HospitalService: UpdateAvailableSlotsAsync - hospital {hospitalId} not found");
 
+                if (!callerIsAdmin)
+                {
+                    bool isHospitalAdmin = await _roleMappingRepository.IsUserInRoleAsync(
+                        callerUserUid, "hospital-admin", foundHospital.HospitalId);
+
+                    if (!isHospitalAdmin)
+                        throw new UnauthorizedAccessException(
+                            $"HospitalService: UpdateAvailableSlotsAsync - caller is not authorized to adjust slots for hospital {hospitalId}");
+                }
+
                 int newAvailable = foundHospital.SlotsAvailable + availableSlots;
 
                 if (newAvailable < 0)
@@ -176,6 +232,10 @@ namespace Vaxtrack.Services
                 foundHospital.UpdatedDate = DateTime.UtcNow;
                 var updatedHospital = await _hospitalRepository.UpdateHospitalAsync(foundHospital);
                 return updatedHospital.SlotsAvailable;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

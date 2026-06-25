@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.IdentityModel.Tokens.Jwt;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Dtos.HospitalDtos;
 
@@ -19,6 +20,13 @@ namespace Vaxtrack.Controllers
             _logger = logger;
         }
 
+        // ── helpers ───────────────────────────────────────────────────────────────
+
+        private string CallerUserUid => User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? "";
+        private bool CallerIsAdmin   => User.IsInRole("admin");
+
+        // ── endpoints ─────────────────────────────────────────────────────────────
+
         [Authorize(Roles = "admin")]
         [HttpPost]
         public async Task<ActionResult<CreateHospitalResponseDto>> CreateHospitalAsync(CreateHospitalRequestDto createHospitalRequestDto)
@@ -35,14 +43,18 @@ namespace Vaxtrack.Controllers
             }
         }
 
-        [Authorize(Roles = "admin")]
+        // Platform admin OR hospital-admin scoped to that hospital
         [HttpPut]
         public async Task<ActionResult<UpdateHospitalResponseDto>> UpdateHospitalAsync(UpdateHospitalRequestDto updateHospitalRequest)
         {
             try
             {
-                var updatedHospital = await _hospitalService.UpdateHospitalAsync(updateHospitalRequest);
+                var updatedHospital = await _hospitalService.UpdateHospitalAsync(updateHospitalRequest, CallerUserUid, CallerIsAdmin);
                 return Ok(updatedHospital);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {
@@ -51,14 +63,18 @@ namespace Vaxtrack.Controllers
             }
         }
 
-        [Authorize(Roles = "admin")]
+        // Platform admin OR hospital-admin scoped to that hospital
         [HttpPut("{hospitalId}/{totalSlots}")]
         public async Task<ActionResult<int>> UpdateTotalSlotsAsync(string hospitalId, int totalSlots)
         {
             try
             {
-                int updatedSlots = await _hospitalService.UpdateTotalSlotsAsync(hospitalId, totalSlots);
+                int updatedSlots = await _hospitalService.UpdateTotalSlotsAsync(hospitalId, totalSlots, CallerUserUid, CallerIsAdmin);
                 return Ok(updatedSlots);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {
@@ -67,14 +83,18 @@ namespace Vaxtrack.Controllers
             }
         }
 
-        [Authorize(Roles = "admin")]
+        // Platform admin OR hospital-admin scoped to that hospital
         [HttpPut("{hospitalId}/{slotsToUpdate}")]
         public async Task<ActionResult<int>> UpdateAvailableSlotsAsync(string hospitalId, int slotsToUpdate)
         {
             try
             {
-                int updatedSlots = await _hospitalService.UpdateAvailableSlotsAsync(hospitalId, slotsToUpdate);
+                int updatedSlots = await _hospitalService.UpdateAvailableSlotsAsync(hospitalId, slotsToUpdate, CallerUserUid, CallerIsAdmin);
                 return Ok(updatedSlots);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
             catch (Exception ex)
             {

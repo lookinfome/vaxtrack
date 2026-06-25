@@ -18,7 +18,8 @@ namespace Vaxtrack.Interfaces
         // callerUserUid enforces that only the booking owner can schedule Dose 2
         Task<BookDose2ResponseDto> BookDose2Async(BookDose2RequestDto bookDose2Request, string callerUserUid);
 
-        Task<BookingProfileDataDto> ApproveBookingsAsync(string bookingId);
+        // callerUserUid + callerIsAdmin: platform admin OR hospital-admin scoped to the booking's hospital can approve
+        Task<BookingProfileDataDto> ApproveBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin);
 
         // callerUserUid + callerIsAdmin: owner or admin can cancel
         Task<BookingProfileDataDto> CancelBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin);
