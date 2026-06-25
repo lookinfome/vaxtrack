@@ -1,0 +1,11 @@
+# Start Docker Desktop
+docker-compose up -d          # from v2_backend/v2.0.0/
+
+# When done
+docker-compose down
+
+
+Docker image built	v200-api:latest
+Container started	v200-api-1 running
+API listening	http://localhost:5119
+OpenAPI spec	http://localhost:5119/openapi/v1.json
