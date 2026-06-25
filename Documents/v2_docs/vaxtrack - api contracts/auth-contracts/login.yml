@@ -1,0 +1,22 @@
+info:
+  name: login
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseURL}}/api/vaxtrack/v1/auth/login"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "meera@test.com",
+        "password": "Vaxtrack@Test1"
+      }
+  auth: none
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

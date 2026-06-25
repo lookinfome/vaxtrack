@@ -1,0 +1,23 @@
+info:
+  name: update email
+  type: http
+  seq: 1
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/user/updateemail"
+  body:
+    type: json
+    data: |-
+      {
+        "userId": "Vivek-17-a1",
+        "currentPassword": "Vaxtrack@Test1",
+        "newEmail": "vivek.new@test.com"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

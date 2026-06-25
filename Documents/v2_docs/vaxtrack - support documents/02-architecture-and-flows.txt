@@ -1,0 +1,777 @@
+================================================================================
+VAXTRACK — ARCHITECTURE AND OPERATIONAL FLOWS DOCUMENT
+Version: 2.0.0   |   Date: 2026-06-26   |   Status: Active
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1.  High-Level Architecture Diagram
+2.  Low-Level Component Diagram
+3.  Database Schema Diagram
+4.  Request Pipeline (how every HTTP request flows)
+5.  Operational Flow: User Registration
+6.  Operational Flow: User Login
+7.  Operational Flow: User Logout
+8.  Operational Flow: Forgot Password (2-step)
+9.  Operational Flow: Update User Profile
+10. Operational Flow: Delete User (cascade)
+11. Operational Flow: Create Hospital
+12. Operational Flow: Update Hospital (with hospital-admin)
+13. Operational Flow: Book Dose 1
+14. Operational Flow: Book Dose 2
+15. Operational Flow: Approve Booking
+16. Operational Flow: Cancel Booking
+17. Operational Flow: Delete Hospital (cascade)
+18. Operational Flow: Assign Role
+19. Operational Flow: Revoke Role
+20. Operational Flow: Token Blacklist Check (OnTokenValidated)
+21. Operational Flow: Delete Booking (cascade)
+22. User Account Deletion Cascade
+
+================================================================================
+1. HIGH-LEVEL ARCHITECTURE DIAGRAM
+================================================================================
+
+  +------------------+
+  |   HTTP Client    |  (Postman / Frontend / Mobile)
+  +--------+---------+
+           |
+           | HTTPS
+           v
+  +------------------+       +---------------------+
+  |  ASP.NET Core    |       |  SQL Server          |
+  |  Web API         |<----->|  (VaxtrackDbContext) |
+  |  (.NET 10)       |  EF   |                      |
+  |                  |  Core |  Tables:             |
+  |  Controllers     |       |  - Users             |
+  |  Services        |       |  - UserCredentials   |
+  |  Repositories    |       |  - Hospitals         |
+  |                  |       |  - Bookings          |
+  +------------------+       |  - UserRoleMappings  |
+           |                 |  - RevokedTokens     |
+           | Logs            |  - PasswordReset     |
+           v                 |    Tokens            |
+  +------------------+       +---------------------+
+  |  Serilog Logs    |
+  |  (File + Console)|
+  +------------------+
+
+Authentication flow:
+  Client ---[JWT Bearer token in header]---> API
+  API reads token, validates signature + expiry + JTI-blacklist check
+  If valid: Principal populated, controller executes
+  If invalid: 401 Unauthorized returned before hitting controller
+
+================================================================================
+2. LOW-LEVEL COMPONENT DIAGRAM
+================================================================================
+
+  HTTP Request
+       |
+       v
+  +--------------------+
+  | ASP.NET Middleware |
+  | Pipeline           |
+  |  UseAuthentication |  <-- validates JWT signature, expiry, issuer, audience
+  |  OnTokenValidated  |  <-- checks RevokedTokens table for JTI
+  |  UseAuthorization  |  <-- enforces [Authorize] and [Authorize(Roles=...)]
+  +--------+-----------+
+           |
+           v
+  +---------------------------+
+  |     CONTROLLERS           |  (one per domain, DI injected)
+  |  AuthController           |
+  |  UserController           |
+  |  HospitalController       |
+  |  BookingController        |
+  |  UserRoleMappingController|
+  |                           |
+  |  Extract CallerUserUid    |  User.FindFirst("sub")
+  |  Extract CallerIsAdmin    |  User.IsInRole("admin")
+  +--------+------------------+
+           |
+           v
+  +---------------------------+
+  |     SERVICE LAYER         |  (business logic, ownership checks, mapping)
+  |  AuthService              |
+  |  UserService              |
+  |  HospitalService          |
+  |  BookingService           |
+  |  UserRoleMappingService   |
+  |  UtilityService           |
+  +--------+------------------+
+           |
+           v
+  +---------------------------+
+  |     REPOSITORY LAYER      |  (data access via EF Core, no business logic)
+  |  UserRepository           |
+  |  UserCredentialsRepository|
+  |  HospitalRepository       |
+  |  BookingRepository        |
+  |  UserRoleMappingRepository|
+  |  TokenBlacklistRepository |
+  |  PasswordResetTokenRepo.  |
+  +--------+------------------+
+           |
+           v
+  +---------------------------+
+  |  VaxtrackDbContext (EF)   |
+  |  SQL Server               |
+  +---------------------------+
+
+Key design principles:
+  - Each layer only talks to the layer directly below it.
+  - Services own all business logic; repositories own only EF queries.
+  - Interfaces are defined for every service and repository (DI contracts).
+  - UnauthorizedAccessException propagates from service → controller → Forbid().
+  - Generic exceptions propagate from service → controller → 500.
+
+================================================================================
+3. DATABASE SCHEMA DIAGRAM
+================================================================================
+
+  USERS                          USER_CREDENTIALS
+  ----------------               ----------------
+  UserId    (PK, string)         Id         (PK, int, identity)
+  UserUid   (GUID, FK link)  <---UserUid    (string, FK to Users.UserUid)
+  UserName                       Email      (unique per active account)
+  UserBirthdate                  PasswordHash  (BCrypt)
+  UserAge                        IsDeleted
+  UserGender                     DeletedAt
+  UserPhone                      CreatedAt
+  UserAddress                    UpdatedAt
+  UserPinCode
+  ProfilePicturePath
+  UserRole  (bool: admin flag)
+  IsDeleted
+  CreatedAt
+  UpdatedAt
+  DeletedAt
+
+  HOSPITALS
+  ----------------
+  HospitalId   (PK, string)
+  HospitalUid  (GUID)
+  HospitalName
+  HospitalAddress
+  HospitalPinCode
+  HospitalPhoneNumber
+  HospitalEmail
+  TotalSlots    (int)
+  SlotsAvailable (int)
+  IsDeleted
+  RegisteredDate
+  UpdatedDate
+  RemovedDate
+
+  BOOKINGS
+  ----------------
+  BookingId     (PK, string)
+  BookingUid    (GUID)
+  UserUid       (FK to Users.UserUid)
+  Dose1RequestedDateTime
+  Dose1SlotNumber
+  Dose1HospitalUid   (= HospitalId of Dose1 hospital)
+  IsDose1Completed   (bool)
+  Dose1CompletedDateTime
+  IsD1RequestCanceled (bool)
+  Dose2RequestedDateTime
+  Dose2SlotNumber
+  Dose2HospitalUid   (= HospitalId of Dose2 hospital, empty until booked)
+  IsDose2Completed   (bool)
+  Dose2CompletedDateTime
+  IsD2RequestCanceled (bool)
+  IsVaccinationCompleted (bool)
+  VaccinationCompletedDateTime
+  IsDeleted
+  CreatedAt
+  ModifiedAt
+  RemovedAt
+
+  USER_ROLE_MAPPINGS
+  ----------------
+  Id         (PK, int, identity)
+  UserUid    (FK to Users.UserUid)
+  RoleTag    (string, e.g. "hospital-admin")
+  ContextId  (string: empty = global, HospitalId = scoped)
+  IsActive   (bool: soft revoke flag)
+  CreatedAt
+  UpdatedAt
+
+  REVOKED_TOKENS
+  ----------------
+  Id         (PK, int, identity)
+  Jti        (string: JWT jti claim)
+  ExpiresAt  (DateTime: natural token expiry, for cleanup)
+  RevokedAt  (DateTime: when logout was called)
+
+  PASSWORD_RESET_TOKENS
+  ----------------
+  Id         (PK, int, identity)
+  UserUid    (FK to Users.UserUid)
+  Token      (string: 32-char hex, Guid.NewGuid().ToString("N"))
+  IsUsed     (bool: single-use flag)
+  ExpiresAt  (DateTime: 15 min from creation)
+  CreatedAt
+  UsedAt     (DateTime?: null until consumed)
+
+  FK relationships:
+    UserCredentials.UserUid    --> Users.UserUid
+    Bookings.UserUid           --> Users.UserUid
+    UserRoleMappings.UserUid   --> Users.UserUid
+    PasswordResetTokens.UserUid --> Users.UserUid
+    Bookings.Dose1HospitalUid  --> Hospitals.HospitalId  (logical, no EF FK)
+    Bookings.Dose2HospitalUid  --> Hospitals.HospitalId  (logical, no EF FK)
+    UserRoleMappings.ContextId --> Hospitals.HospitalId  (logical, no EF FK)
+
+================================================================================
+4. REQUEST PIPELINE (every HTTP request)
+================================================================================
+
+  Client sends request with: Authorization: Bearer <jwt>
+           |
+           v
+  [UseAuthentication]
+    - Validate JWT signature using HMAC-SHA256 + appsettings Key
+    - Validate issuer, audience, token lifetime
+    - ClockSkew = TimeSpan.Zero (no tolerance)
+    - If invalid: return 401 immediately
+           |
+           v
+  [OnTokenValidated event]
+    - Extract JTI claim from Principal
+    - Query RevokedTokens table: IsRevokedAsync(jti)
+    - If revoked: context.Fail("Token has been revoked") → 401
+           |
+           v
+  [UseAuthorization]
+    - Check [Authorize] → must be authenticated (done above)
+    - Check [Authorize(Roles="admin")] → token's "role" claim must be "admin"
+    - If fails: 403 Forbidden
+           |
+           v
+  [Controller Action]
+    - Extract CallerUserUid = User.FindFirst("sub")?.Value
+    - Extract CallerIsAdmin  = User.IsInRole("admin")
+    - Call service method with these values
+           |
+           v
+  [Service Layer]
+    - Business logic, ownership checks
+    - UnauthorizedAccessException → propagates up
+    - Other exceptions → propagates up
+           |
+           v
+  [Controller catches]
+    - UnauthorizedAccessException → return Forbid() (403)
+    - Exception → log + return StatusCode(500)
+           |
+           v
+  [Response sent to client]
+
+================================================================================
+5. OPERATIONAL FLOW: USER REGISTRATION
+================================================================================
+
+  POST /User/CreateUserAsync  (AllowAnonymous)
+
+  Client
+    |-- POST {FirstName, LastName, Birthdate, Gender, Phone, Address,
+    |         PinCode, Email, Password}
+    v
+  UserController.CreateUserAsync
+    |-- call UserService.CreateUserAsync(dto)
+    v
+  UserService.CreateUserAsync
+    |-- [1] Validate Birthdate < UtcNow
+    |-- [2] GetCredentialsByEmailAsync(email)
+    |        IF found → throw "email already in use"
+    |-- [3] UtilityService.GenerateGuidAsync()     → UserUid
+    |-- [4] UtilityService.GenerateUniqueIdAsync() → UserId
+    |-- [5] UtilityService.CalculateAgeAsync()     → UserAge
+    |-- [6] UserRepository.CreateUserAsync(UserModel)
+    |-- [7] BCrypt.HashPassword(Password)
+    |-- [8] UserCredentialsRepository.CreateCredentialsAsync(credentials)
+    |-- return CreateUserResponseDto
+    v
+  Controller returns 201 Created with location header pointing to
+  GetUserProfileDataAsync/{userId}
+
+================================================================================
+6. OPERATIONAL FLOW: USER LOGIN
+================================================================================
+
+  POST /Auth/LoginAsync  (AllowAnonymous)
+
+  Client
+    |-- POST {Email, Password}
+    v
+  AuthController.LoginAsync
+    |-- call AuthService.LoginAsync(dto)
+    v
+  AuthService.LoginAsync
+    |-- [1] UserCredentialsRepository.GetCredentialsByEmailAsync(email)
+    |        IF null → throw "invalid email or password"
+    |-- [2] BCrypt.Verify(password, hash)
+    |        IF false → throw "invalid email or password"
+    |-- [3] UserRepository.GetUserDetailsByUserUidAsync(credentials.UserUid)
+    |        IF null (soft-deleted) → throw "invalid email or password"
+    |-- [4] Set expiry = UtcNow + JwtSettings.ExpiryMinutes
+    |-- [5] GenerateJwtToken(user, email, expiry)
+    |        Claims: sub=UserUid, email, name,
+    |                role="admin"|"user", jti=NewGuid
+    |-- return LoginResponseDto {Token, ExpiresAt, UserId, ...}
+    v
+  Controller returns 200 OK with JWT
+
+================================================================================
+7. OPERATIONAL FLOW: USER LOGOUT
+================================================================================
+
+  POST /Auth/LogoutAsync  (Authorize)
+
+  Client
+    |-- POST  (no body, JWT in header)
+    v
+  [Pipeline validates JWT, runs OnTokenValidated — token must NOT be revoked]
+    v
+  AuthController.LogoutAsync
+    |-- Extract jti  = User.FindFirst("jti")
+    |-- Extract exp  = User.FindFirst("exp") → parse Unix timestamp → DateTime
+    |-- call AuthService.LogoutAsync(jti, expiresAt)
+    v
+  AuthService.LogoutAsync
+    |-- Validate jti not empty
+    |-- TokenBlacklistRepository.RevokeTokenAsync(jti, expiresAt)
+    |     - Insert into RevokedTokens
+    |     - Purge expired rows (RevokedAt < UtcNow) opportunistically
+    v
+  Controller returns 200 { "message": "logged out successfully" }
+
+  Next request with same token:
+    OnTokenValidated → IsRevokedAsync(jti) = true → context.Fail() → 401
+
+================================================================================
+8. OPERATIONAL FLOW: FORGOT PASSWORD (2-STEP)
+================================================================================
+
+  STEP 1 — Request reset token
+  POST /Auth/ForgotPasswordAsync  (AllowAnonymous)
+
+  Client
+    |-- POST {Email}
+    v
+  AuthService.ForgotPasswordAsync
+    |-- [1] GetCredentialsByEmailAsync(email)
+    |        IF null → return generic response (no token, no error hint)
+    |-- [2] GetUserDetailsByUserUidAsync(credentials.UserUid)
+    |        IF null (deleted) → return generic response
+    |-- [3] token = Guid.NewGuid().ToString("N")   (32 hex chars)
+    |-- [4] expiresAt = UtcNow + 15 minutes
+    |-- [5] PasswordResetTokenRepository.CreateTokenAsync(UserUid, token, expiresAt)
+    |-- return ForgotPasswordResponseDto {Message, ResetToken, ExpiresAt}
+    v
+  Client receives token (in production: sent via email, stripped from response)
+
+  STEP 2 — Submit token + new password
+  POST /Auth/ResetForgottenPasswordAsync  (AllowAnonymous)
+
+  Client
+    |-- POST {ResetToken, NewPassword}
+    v
+  AuthService.ResetForgottenPasswordAsync
+    |-- [1] GetValidTokenAsync(token)
+    |        Query: !IsUsed AND ExpiresAt > UtcNow
+    |        IF null → throw "invalid or expired"
+    |-- [2] GetCredentialsByUserUidAsync(resetToken.UserUid)
+    |        IF null → throw
+    |-- [3] GetUserDetailsByUserUidAsync(resetToken.UserUid)
+    |        IF null → throw
+    |-- [4] MarkTokenAsUsedAsync(resetToken.Id)  ← before hash write (race guard)
+    |-- [5] BCrypt.HashPassword(NewPassword)
+    |-- [6] UpdatePasswordHashAsync(UserUid, newHash)
+    |-- [7] Stamp UserModel.UpdatedAt = UtcNow
+    |-- return ResetForgottenPasswordResponseDto {UserId, UpdatedAt}
+
+================================================================================
+9. OPERATIONAL FLOW: UPDATE USER PROFILE
+================================================================================
+
+  PUT /User/UpdateUserAsync  (Authorize)
+
+  Client
+    |-- PUT {UserId, FirstName, LastName, Gender, Phone, Address, PinCode,
+    |         ProfilePicturePath}  + JWT
+    v
+  [Pipeline: validate JWT, not revoked]
+    v
+  UserController.UpdateUserAsync
+    |-- CallerUserUid = User.FindFirst("sub")
+    |-- CallerIsAdmin = User.IsInRole("admin")
+    |-- call UserService.UpdateUserAsync(dto, CallerUserUid, CallerIsAdmin)
+    v
+  UserService.UpdateUserAsync
+    |-- [1] GetUserDetailsByUserIdAsync(dto.UserId)
+    |        IF null → throw
+    |-- [2] Ownership check:
+    |        IF !callerIsAdmin AND foundUser.UserUid != callerUserUid
+    |           → throw UnauthorizedAccessException
+    |-- [3] Map mutable fields onto foundUser model
+    |-- [4] UserRepository.UpdateUserAsync(mappedUser)
+    |-- return UpdateUserResponseDto
+    v
+  200 OK or 403 Forbidden
+
+================================================================================
+10. OPERATIONAL FLOW: DELETE USER (CASCADE)
+================================================================================
+
+  Admin: DELETE /User/DeleteUserAsync/{userId}
+  Self:  DELETE /User/DeleteMyAccountAsync
+
+  [Common cascade path: ExecuteUserDeleteCascadeAsync(userModel)]
+
+  |-- [1] UserRepository.UpdateUserAsync(user with IsDeleted=true, DeletedAt=now)
+  |         → User blocked from login immediately (credential lookup excludes deleted)
+  |
+  |-- [2] BookingService.DeleteBookingsByUserUidAsync(user.UserUid)
+  |         → GetAllActiveBookingsByUserUidAsync(userUid)
+  |         → For each active booking: DeleteBookingAsync(bookingId)
+  |              → Soft-delete booking
+  |              → If Dose1 pending: UpdateAvailableSlotsAsync(D1Hospital, +1)
+  |              → If Dose2 pending: UpdateAvailableSlotsAsync(D2Hospital, +1)
+  |
+  |-- [3] UserRoleMappingService.RevokeUserRoleMappingsAsync(user.UserUid)
+  |         → RevokeAllMappingsByUserUidAsync(userUid)
+  |         → Sets IsActive=false on all mappings for this user
+  |
+  |-- [4] UserCredentialsRepository.SoftDeleteCredentialsByUserUidAsync(userUid)
+  |         → IsDeleted=true, DeletedAt=now (email freed for re-registration)
+
+================================================================================
+11. OPERATIONAL FLOW: CREATE HOSPITAL
+================================================================================
+
+  POST /Hospital/CreateHospitalAsync  (admin only)
+
+  Admin
+    |-- POST {HospitalName}  + admin JWT
+    v
+  [Pipeline: validate JWT, role="admin" enforced by [Authorize(Roles="admin")]]
+    v
+  HospitalController.CreateHospitalAsync
+    |-- call HospitalService.CreateHospitalAsync(dto)
+    v
+  HospitalService.CreateHospitalAsync
+    |-- [1] UtilityService.GenerateGuidAsync()     → HospitalUid
+    |-- [2] UtilityService.GenerateUniqueIdAsync() → HospitalId
+    |-- [3] Build HospitalModel:
+    |        TotalSlots = 50, SlotsAvailable = 50
+    |        Contact fields start empty
+    |-- [4] HospitalRepository.CreateHospitalAsync(model)
+    |-- return CreateHospitalResponseDto
+    v
+  201 Created with location: GetHospitalByIdAsync/{hospitalId}
+
+================================================================================
+12. OPERATIONAL FLOW: UPDATE HOSPITAL (with hospital-admin)
+================================================================================
+
+  PUT /Hospital/UpdateHospitalAsync  (any authenticated user)
+
+  Caller (hospital-admin OR platform admin)
+    |-- PUT {HospitalId, Address, PinCode, Phone, Email}  + JWT
+    v
+  [Pipeline: validate JWT, not revoked]
+    v
+  HospitalController.UpdateHospitalAsync
+    |-- CallerUserUid = User.FindFirst("sub")
+    |-- CallerIsAdmin = User.IsInRole("admin")  → false for hospital-admin
+    |-- call HospitalService.UpdateHospitalAsync(dto, CallerUserUid, CallerIsAdmin)
+    v
+  HospitalService.UpdateHospitalAsync
+    |-- [1] GetHospitalByIdAsync(dto.HospitalId) → if null, throw
+    |-- [2] IF !callerIsAdmin:
+    |         UserRoleMappingRepository.IsUserInRoleAsync(
+    |           callerUserUid, "hospital-admin", foundHospital.HospitalId)
+    |         Query: UserRoleMappings WHERE UserUid=caller AND RoleTag="hospital-admin"
+    |                AND ContextId=hospitalId AND IsActive=true
+    |         IF false → throw UnauthorizedAccessException
+    |-- [3] Map contact fields
+    |-- [4] HospitalRepository.UpdateHospitalAsync(model)
+    |-- return UpdateHospitalResponseDto
+    v
+  200 OK or 403 Forbidden
+
+  NOTE: Same pattern applies to UpdateTotalSlotsAsync and UpdateAvailableSlotsAsync.
+  NOTE: UpdateAvailableSlotsAsync is also called internally by BookingService
+        with default params (callerIsAdmin=true) to bypass the auth check.
+
+================================================================================
+13. OPERATIONAL FLOW: BOOK DOSE 1
+================================================================================
+
+  POST /Booking/CreateBookingAsync  (any authenticated user)
+
+  User
+    |-- POST {UserUid, Dose1HospitalUid, Dose1RequestedDateTime, Dose1SlotNumber}
+    |         + JWT
+    v
+  BookingController.CreateBookingAsync
+    |-- CallerUserUid from JWT
+    |-- call BookingService.CreateBookingAsync(dto, CallerUserUid)
+    v
+  BookingService.CreateBookingAsync
+    |-- [1] IF dto.UserUid != callerUserUid → throw UnauthorizedAccessException
+    |-- [2] IF Dose1RequestedDateTime <= UtcNow → throw
+    |-- [3] BookingRepository.IsBookingExistsAsync(dto.UserUid)
+    |        IF true → throw (duplicate booking)
+    |-- [4] HospitalService.GetHospitalByIdAsync(Dose1HospitalUid)
+    |        IF SlotsAvailable <= 0 → throw
+    |-- [5] Build BookingModel (all Dose2 fields null/empty/false)
+    |-- [6] BookingRepository.CreateBookingAsync(model)
+    |-- [7] HospitalService.UpdateAvailableSlotsAsync(Dose1HospitalUid, -1)
+    |        SlotsAvailable decremented by 1
+    |-- return CreateBookingResponseDto
+    v
+  201 Created with location: GetBookingByBookingIdAsync/{bookingId}
+
+================================================================================
+14. OPERATIONAL FLOW: BOOK DOSE 2
+================================================================================
+
+  PUT /Booking/BookDose2Async  (any authenticated user)
+
+  User (Dose1 must be already approved)
+    |-- PUT {BookingId, Dose2HospitalUid, Dose2RequestedDateTime, Dose2SlotNumber}
+    v
+  BookingService.BookDose2Async
+    |-- [1] IF Dose2RequestedDateTime <= UtcNow → throw
+    |-- [2] GetBookingDetailsByBookingIdAsync(BookingId) → if null, throw
+    |-- [3] IF foundBooking.UserUid != callerUserUid → throw UnauthorizedAccessException
+    |-- [4] IF !IsDose1Completed → throw
+    |-- [5] IF Dose2HospitalUid not empty → throw (already booked)
+    |-- [6] IF IsDose2Completed → throw
+    |-- [7] IF IsD1RequestCanceled → throw
+    |-- [8] GetHospitalByIdAsync(Dose2HospitalUid) → IF SlotsAvailable<=0 → throw
+    |-- [9] Set Dose2 fields on booking model
+    |-- [10] BookingRepository.UpdateBookingAsync(model)
+    |-- [11] HospitalService.UpdateAvailableSlotsAsync(Dose2HospitalUid, -1)
+    |-- return BookDose2ResponseDto
+
+================================================================================
+15. OPERATIONAL FLOW: APPROVE BOOKING
+================================================================================
+
+  PUT /Booking/ApproveBookingsAsync/{bookingId}  (any authenticated user)
+
+  Caller: platform admin OR hospital-admin scoped to the booking's hospital
+    |
+    v
+  BookingController.ApproveBookingsAsync
+    |-- CallerUserUid = User.FindFirst("sub")
+    |-- CallerIsAdmin = User.IsInRole("admin")
+    |-- call BookingService.ApproveBookingsAsync(bookingId, CallerUserUid, CallerIsAdmin)
+    v
+  BookingService.ApproveBookingsAsync
+    |-- [1] GetBookingDetailsByBookingIdAsync(bookingId) → if null, throw
+    |-- [2] IF IsVaccinationCompleted → throw (nothing to approve)
+    |-- [3] Determine which dose:
+    |        approvingDose1 = !IsDose1Completed AND !IsD1RequestCanceled
+    |        approvingDose2 = IsDose1Completed AND Dose2HospitalUid not empty
+    |                         AND !IsDose2Completed AND !IsD2RequestCanceled
+    |-- [4] IF !approvingDose1 AND !approvingDose2 → throw (no pending dose)
+    |-- [5] IF !callerIsAdmin:
+    |         relevantHospitalId = approvingDose1
+    |                              ? Dose1HospitalUid : Dose2HospitalUid
+    |         IsUserInRoleAsync(callerUserUid, "hospital-admin", relevantHospitalId)
+    |         IF false → throw UnauthorizedAccessException
+    |-- [6a] IF approvingDose1:
+    |          IsDose1Completed = true
+    |          Dose1CompletedDateTime = UtcNow
+    |-- [6b] IF approvingDose2:
+    |          IsDose2Completed = true
+    |          Dose2CompletedDateTime = UtcNow
+    |          IsVaccinationCompleted = true
+    |          VaccinationCompletedDateTime = UtcNow
+    |-- [7] BookingRepository.UpdateBookingAsync(model)
+    |-- return BookingProfileDataDto
+    v
+  200 OK or 403 Forbidden
+
+================================================================================
+16. OPERATIONAL FLOW: CANCEL BOOKING
+================================================================================
+
+  PUT /Booking/CancelBookingsAsync/{bookingId}  (any authenticated user)
+
+  Caller: booking owner OR platform admin
+    |
+    v
+  BookingService.CancelBookingsAsync
+    |-- [1] GetBookingDetailsByBookingIdAsync(bookingId) → if null, throw
+    |-- [2] IF !callerIsAdmin AND foundBooking.UserUid != callerUserUid
+    |         → throw UnauthorizedAccessException
+    |-- [3] IF IsVaccinationCompleted → throw (cannot undo administered vaccine)
+    |-- [4] Priority logic:
+    |
+    |   CASE A: !IsDose1Completed AND !IsD1RequestCanceled
+    |     → IsD1RequestCanceled = true
+    |     → UpdateBookingAsync
+    |     → UpdateAvailableSlotsAsync(Dose1HospitalUid, +1) ← slot restored
+    |
+    |   CASE B: IsDose1Completed AND Dose2HospitalUid not empty
+    |            AND !IsDose2Completed AND !IsD2RequestCanceled
+    |     → IsD2RequestCanceled = true
+    |     → UpdateBookingAsync
+    |     → UpdateAvailableSlotsAsync(Dose2HospitalUid, +1) ← slot restored
+    |
+    |   ELSE: → throw "no active dose to cancel"
+    |
+    |-- [5] Re-fetch booking and return BookingProfileDataDto
+    v
+  200 OK or 403 Forbidden
+
+================================================================================
+17. OPERATIONAL FLOW: DELETE HOSPITAL (CASCADE)
+================================================================================
+
+  DELETE /Hospital/DeleteHospitalAsync/{hospitalId}  (admin only)
+
+  Admin
+    |-- DELETE + admin JWT
+    v
+  HospitalService.DeleteHospitalAsync
+    |-- [1] GetHospitalByIdAsync(hospitalId) → if null, throw
+    |-- [2] BookingRepository.HasActiveBookingsForHospitalAsync(hospitalId)
+    |        IF true → throw (must cancel/transfer bookings first)
+    |-- [3] foundHospital.IsDeleted = true, RemovedDate = UtcNow
+    |-- [4] HospitalRepository.UpdateHospitalAsync(foundHospital)
+    |-- [5] UserRoleMappingRepository.RevokeAllMappingsByContextIdAsync(hospitalId)
+    |        Sets IsActive=false for ALL UserRoleMappings WHERE ContextId=hospitalId
+    |        (hospital-admin assignments become inactive)
+    v
+  204 No Content
+
+================================================================================
+18. OPERATIONAL FLOW: ASSIGN ROLE
+================================================================================
+
+  POST /UserRoleMapping/AssignRoleAsync  (admin only)
+
+  Admin
+    |-- POST {UserUid, RoleTag, ContextId}  + admin JWT
+    v
+  UserRoleMappingController.AssignRoleAsync
+    |-- class-level [Authorize(Roles="admin")] enforced by middleware
+    |-- call UserRoleMappingService.AssignRoleAsync(dto)
+    v
+  UserRoleMappingService.AssignRoleAsync
+    |-- [1] UserRepository.GetUserDetailsByUserUidAsync(UserUid) → if null, throw
+    |-- [2] UserRoleMappingRepository.GetExistingMappingAsync(UserUid, RoleTag, ContextId)
+    |
+    |   CASE A: Found AND IsActive = true
+    |     → throw "already has active role"
+    |
+    |   CASE B: Found AND IsActive = false  (previously revoked)
+    |     → mapping.IsActive = true, UpdatedAt = UtcNow
+    |     → UpdateRoleMappingAsync(mapping)
+    |     → return reactivated mapping DTO
+    |
+    |   CASE C: Not found
+    |     → new UserRoleMappingModel { UserUid, RoleTag, ContextId, IsActive=true }
+    |     → AddRoleMappingAsync(newMapping)
+    |     → return new mapping DTO
+    v
+  201 Created
+
+================================================================================
+19. OPERATIONAL FLOW: REVOKE ROLE
+================================================================================
+
+  DELETE /UserRoleMapping/RevokeRoleAsync/{mappingId}  (admin only)
+
+  Admin
+    |-- DELETE + admin JWT
+    v
+  UserRoleMappingService.RevokeRoleAsync
+    |-- [1] GetRoleMappingByIdAsync(mappingId) → if null, throw
+    |-- [2] IF !foundMapping.IsActive → throw "already revoked" (idempotency guard)
+    |-- [3] foundMapping.IsActive = false, UpdatedAt = UtcNow
+    |-- [4] UpdateRoleMappingAsync(foundMapping)
+    v
+  204 No Content
+
+  Effect is immediate: next request from that user hits IsUserInRoleAsync,
+  which returns false, causing UnauthorizedAccessException → 403.
+
+================================================================================
+20. OPERATIONAL FLOW: TOKEN BLACKLIST CHECK (OnTokenValidated)
+================================================================================
+
+  This fires on EVERY authenticated request, after JWT signature is valid.
+
+  JwtBearerEvents.OnTokenValidated (registered in Program.cs):
+
+    |-- Resolve ITokenBlacklistRepository from DI
+    |-- Extract jti = context.Principal.FindFirst("jti")?.Value
+    |-- IF jti is not empty:
+    |     await blacklist.IsRevokedAsync(jti)
+    |     Query: RevokedTokens WHERE Jti = jti
+    |     IF found → context.Fail("Token has been revoked") → 401
+    |-- IF jti is empty → pass (edge case: malformed token already rejected above)
+    v
+  Request proceeds to controller (or is rejected before reaching it)
+
+================================================================================
+21. OPERATIONAL FLOW: DELETE BOOKING (CASCADE)
+================================================================================
+
+  DELETE /Booking/DeleteBookingAsync/{bookingId}  (admin only)
+
+  BookingService.DeleteBookingAsync
+    |-- [1] GetBookingDetailsByBookingIdAsync(bookingId) → if null, throw
+    |-- [2] foundBooking.IsDeleted = true, RemovedAt = UtcNow, ModifiedAt = UtcNow
+    |-- [3] BookingRepository.UpdateBookingAsync(foundBooking)
+    |-- [4] Slot restoration:
+    |        IF Dose1HospitalUid not empty
+    |           AND !IsDose1Completed AND !IsD1RequestCanceled
+    |           → UpdateAvailableSlotsAsync(Dose1HospitalUid, +1)
+    |        IF Dose2HospitalUid not empty
+    |           AND !IsDose2Completed AND !IsD2RequestCanceled
+    |           → UpdateAvailableSlotsAsync(Dose2HospitalUid, +1)
+    v
+  204 No Content
+
+================================================================================
+22. USER ACCOUNT DELETION CASCADE (full picture)
+================================================================================
+
+  Trigger: User (self) or Admin calls delete
+           |
+           v
+  ExecuteUserDeleteCascadeAsync(userModel)
+           |
+           +--[1]--> Users table: IsDeleted=true, DeletedAt=now
+           |          Login now blocked (credentials lookup returns null for
+           |          IsDeleted records)
+           |
+           +--[2]--> BookingService.DeleteBookingsByUserUidAsync(UserUid)
+           |          GetAllActiveBookingsByUserUidAsync(UserUid)
+           |          For each booking:
+           |            DeleteBookingAsync(bookingId)
+           |              → soft-delete booking
+           |              → if Dose1 pending: Hospitals.SlotsAvailable += 1
+           |              → if Dose2 pending: Hospitals.SlotsAvailable += 1
+           |
+           +--[3]--> UserRoleMappingService.RevokeUserRoleMappingsAsync(UserUid)
+           |          RevokeAllMappingsByUserUidAsync(UserUid)
+           |          All role mappings: IsActive = false
+           |
+           +--[4]--> UserCredentialsRepository.SoftDeleteCredentialsByUserUidAsync(UserUid)
+                      UserCredentials: IsDeleted=true, DeletedAt=now
+                      Email is now available for re-registration
+
+================================================================================
+END OF DOCUMENT
+================================================================================
