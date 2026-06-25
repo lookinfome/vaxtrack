@@ -99,6 +99,7 @@ builder.Services.AddScoped<IUserRoleMappingRepository, UserRoleMappingRepository
 builder.Services.AddScoped<IUserRoleMappingService, UserRoleMappingService>();
 builder.Services.AddScoped<IUserCredentialsRepository, UserCredentialsRepository>();
 builder.Services.AddScoped<ITokenBlacklistRepository, TokenBlacklistRepository>();
+builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 builder.Services.AddScoped<IUtilityService, UtilityService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
@@ -136,4 +137,5 @@ public class VaxtrackDbContext : DbContext
     public DbSet<BookingModel> Bookings { get; set; }
     public DbSet<UserRoleMappingModel> UserRoleMappings { get; set; }
     public DbSet<RevokedTokenModel> RevokedTokens { get; set; }
+    public DbSet<PasswordResetTokenModel> PasswordResetTokens { get; set; }
 }

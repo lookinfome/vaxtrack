@@ -8,5 +8,9 @@ namespace Vaxtrack.Interfaces
 
         // jti + expiresAt extracted from the validated JWT in the controller (no re-parsing needed)
         Task LogoutAsync(string jti, DateTime expiresAt);
+
+        // Forgot-password flow — does not require the user to be logged in
+        Task<ForgotPasswordResponseDto> ForgotPasswordAsync(ForgotPasswordRequestDto forgotPasswordRequest);
+        Task<ResetForgottenPasswordResponseDto> ResetForgottenPasswordAsync(ResetForgottenPasswordRequestDto resetRequest);
     }
 }

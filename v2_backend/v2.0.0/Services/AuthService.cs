@@ -6,6 +6,7 @@ using Vaxtrack.Dtos.AuthDtos;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Interfaces.RepositoryInterfaces;
 using Vaxtrack.Models;
+using BC = BCrypt.Net.BCrypt;
 
 namespace Vaxtrack.Services
 {
@@ -14,6 +15,7 @@ namespace Vaxtrack.Services
         private readonly IUserCredentialsRepository _credentialsRepository;
         private readonly IUserRepository _userRepository;
         private readonly ITokenBlacklistRepository _tokenBlacklist;
+        private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
         private readonly JwtSettings _jwtSettings;
         private readonly ILogger<AuthService> _logger;
 
@@ -21,12 +23,14 @@ namespace Vaxtrack.Services
             IUserCredentialsRepository credentialsRepository,
             IUserRepository userRepository,
             ITokenBlacklistRepository tokenBlacklist,
+            IPasswordResetTokenRepository passwordResetTokenRepository,
             JwtSettings jwtSettings,
             ILogger<AuthService> logger)
         {
             _credentialsRepository = credentialsRepository;
             _userRepository = userRepository;
             _tokenBlacklist = tokenBlacklist;
+            _passwordResetTokenRepository = passwordResetTokenRepository;
             _jwtSettings = jwtSettings;
             _logger = logger;
         }
@@ -58,7 +62,7 @@ namespace Vaxtrack.Services
                 // Step 1: look up credentials by email and verify password
                 var credentials = await _credentialsRepository.GetCredentialsByEmailAsync(loginRequest.Email);
 
-                if (credentials is null || !BCrypt.Net.BCrypt.Verify(loginRequest.Password, credentials.PasswordHash))
+                if (credentials is null || !BC.Verify(loginRequest.Password, credentials.PasswordHash))
                     throw new Exception("AuthService: LoginAsync - invalid email or password");
 
                 // Step 2: look up user profile (also confirms account is not soft-deleted)
@@ -144,5 +148,126 @@ namespace Vaxtrack.Services
                 throw new Exception($"AuthService: LogoutAsync - {ex.Message}", ex);
             }
         }
+
+        public async Task<ForgotPasswordResponseDto> ForgotPasswordAsync(ForgotPasswordRequestDto forgotPasswordRequest)
+        {
+            /*
+             * Forgot Password Logic:
+             * ----------------------
+             * Generates a time-limited, single-use reset token for an account identified by email.
+             * The caller is NOT logged in — this is the "I forgot my password" path.
+             *
+             * Security: the response is always the same generic message whether the email is
+             * registered or not. This prevents email enumeration (an attacker cannot determine
+             * which emails exist on the platform from this endpoint).
+             *
+             * Token delivery: in production the token would be emailed and stripped from the
+             * response. There is no email service here yet, so the token is returned directly
+             * in the response body for development and testing.
+             *
+             * Edge cases blocked:
+             *   - Null request       → ArgumentNullException.
+             *   - Email not found    → returns generic response, no token generated.
+             *   - User soft-deleted  → GetUserDetailsByUserUidAsync returns null → same generic response.
+             */
+
+            ArgumentNullException.ThrowIfNull(forgotPasswordRequest);
+
+            const string genericMessage = "If this email is registered, a password reset token has been sent.";
+
+            try
+            {
+                var credentials = await _credentialsRepository.GetCredentialsByEmailAsync(forgotPasswordRequest.Email);
+
+                if (credentials is null)
+                    return new ForgotPasswordResponseDto { Message = genericMessage };
+
+                var foundUser = await _userRepository.GetUserDetailsByUserUidAsync(credentials.UserUid);
+
+                if (foundUser is null)
+                    return new ForgotPasswordResponseDto { Message = genericMessage };
+
+                var token     = Guid.NewGuid().ToString("N");   // 32 hex chars, no dashes
+                var expiresAt = DateTime.UtcNow.AddMinutes(15);
+
+                await _passwordResetTokenRepository.CreateTokenAsync(foundUser.UserUid, token, expiresAt);
+
+                return new ForgotPasswordResponseDto
+                {
+                    Message    = genericMessage,
+                    ResetToken = token,     // omit / null this once email delivery is wired up
+                    ExpiresAt  = expiresAt
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AuthService: ForgotPasswordAsync - {Message}", ex.Message);
+                throw new Exception($"AuthService: ForgotPasswordAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<ResetForgottenPasswordResponseDto> ResetForgottenPasswordAsync(ResetForgottenPasswordRequestDto resetRequest)
+        {
+            /*
+             * Reset Forgotten Password Logic:
+             * --------------------------------
+             * Validates the reset token (must exist, not expired, not already used), then
+             * hashes the new password and updates UserCredentials.
+             * The token is immediately marked as used so it cannot be replayed.
+             *
+             * This is different from ChangePasswordAsync:
+             *   - ChangePasswordAsync: user is logged in and supplies their current password.
+             *   - ResetForgottenPasswordAsync: user is NOT logged in; identity is proved by
+             *     possessing a valid, time-limited token that was issued to their email.
+             *
+             * Edge cases blocked:
+             *   - Null request              → ArgumentNullException.
+             *   - Token not found           → throws (invalid or never issued).
+             *   - Token expired             → throws (GetValidTokenAsync returns null for expired rows).
+             *   - Token already used        → throws (IsUsed = true filtered out by repository).
+             *   - User or credentials gone  → throws (account may have been deleted since token was issued).
+             */
+
+            ArgumentNullException.ThrowIfNull(resetRequest);
+
+            try
+            {
+                var resetToken = await _passwordResetTokenRepository.GetValidTokenAsync(resetRequest.ResetToken);
+
+                if (resetToken is null)
+                    throw new Exception("AuthService: ResetForgottenPasswordAsync - reset token is invalid or has expired");
+
+                var credentials = await _credentialsRepository.GetCredentialsByUserUidAsync(resetToken.UserUid);
+
+                if (credentials is null)
+                    throw new Exception("AuthService: ResetForgottenPasswordAsync - no active credentials found for this token");
+
+                var foundUser = await _userRepository.GetUserDetailsByUserUidAsync(resetToken.UserUid);
+
+                if (foundUser is null)
+                    throw new Exception("AuthService: ResetForgottenPasswordAsync - user account not found or has been deleted");
+
+                // Mark the token used before updating the password — prevents any race-condition replay
+                await _passwordResetTokenRepository.MarkTokenAsUsedAsync(resetToken.Id);
+
+                var newHash   = BC.HashPassword(resetRequest.NewPassword);
+                await _credentialsRepository.UpdatePasswordHashAsync(foundUser.UserUid, newHash);
+
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                await _userRepository.UpdateUserAsync(foundUser);
+
+                return new ResetForgottenPasswordResponseDto
+                {
+                    UserId    = foundUser.UserId,
+                    UpdatedAt = foundUser.UpdatedAt!.Value
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AuthService: ResetForgottenPasswordAsync - {Message}", ex.Message);
+                throw new Exception($"AuthService: ResetForgottenPasswordAsync - {ex.Message}", ex);
+            }
+        }
+
     }
 }

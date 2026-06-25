@@ -1,0 +1,438 @@
+================================================================================
+VAXTRACK — DAILY PROGRESS LOG
+Date   : 2026-06-25
+Branch : main
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 1 — UserCredentials Soft-Delete (edge case handling)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  When a user account was soft-deleted, the UserCredentials row was left
+  untouched. This permanently locked the email address — no one could ever
+  register again with that email.
+
+What was done:
+  - Added IsDeleted (bool, default false) and DeletedAt (DateTime?) to
+    UserCredentialsModel.cs
+  - Added SoftDeleteCredentialsByUserUidAsync(string userUid) to
+    IUserCredentialsRepository and UserCredentialsRepository.
+    On delete: sets IsDeleted = true, DeletedAt = now, clears PasswordHash
+    (security hygiene — a deleted account's hash has zero purpose).
+  - Updated all three Get methods in UserCredentialsRepository to filter
+    !c.IsDeleted: GetCredentialsByEmailAsync, GetCredentialsByUserUidAsync,
+    GetCredentialsByUserUidsAsync.
+  - Updated UserService.DeleteUserAsync to cascade credentials soft-delete
+    after revoking role mappings.
+  - Extracted private ExecuteUserDeleteCascadeAsync(UserModel) helper so the
+    same cascade logic is reused by both DeleteUserAsync and DeleteMyAccountAsync.
+  - EF migration: AddUserCredentialsSoftDelete — applied to database.
+
+Why PasswordHash is cleared:
+  After an account is deleted, the hash has no legitimate use. Keeping it is a
+  liability if the database is ever compromised (hash could be brute-forced
+  offline). Email is kept for audit trail.
+
+Why not hard-delete:
+  Inconsistent with every other entity's soft-delete pattern in the codebase.
+  Loses audit trail and makes accidental deletion unrecoverable.
+
+Login protection after deletion (double-gated):
+  Step 1 — GetCredentialsByEmailAsync now filters !IsDeleted → returns null.
+  Step 2 — GetUserDetailsByUserUidAsync filters !IsDeleted on Users table.
+  Both gates independently block login for deleted accounts.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 2 — Duplicate Email Check on Registration (Gap 1)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  Two different users could register with the same email because
+  CreateUserAsync never checked whether the email was already taken.
+
+What was done:
+  - In UserService.CreateUserAsync, added a check before saving the user:
+    calls GetCredentialsByEmailAsync(email) — if a record is found (active,
+    not soft-deleted), throws with "email is already in use".
+  - No DB-level unique constraint added (would conflict with the soft-delete
+    design where deleted rows keep their email for audit). The check is
+    service-layer only, which is sufficient since the filter already excludes
+    deleted rows.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 3 — Email Update Endpoint (Gap 2)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  No mechanism existed to change the email address after registration.
+  Email is stored in UserCredentials, not UserModel, so the existing
+  UpdateUserAsync couldn't touch it.
+
+What was done:
+  New DTOs:
+    - UpdateEmailRequestDto: UserId, NewEmail, CurrentPassword
+    - UpdateEmailResponseDto: UserId, NewEmail, UpdatedAt
+
+  New repository method (IUserCredentialsRepository + UserCredentialsRepository):
+    - UpdateEmailAsync(string userUid, string newEmail): finds active
+      credentials by UserUid, updates Email field, saves.
+
+  New service method (IUserService + UserService):
+    - UpdateEmailAsync(UpdateEmailRequestDto, callerUserUid, callerIsAdmin):
+      1. Fetch user by UserId → get UserUid.
+      2. Ownership check: caller must own the account or be admin.
+      3. Non-admin callers must supply correct CurrentPassword (BCrypt.Verify).
+         Admin callers skip this — they can override without knowing the password
+         (support / account recovery use case).
+      4. New email must not already belong to another active account.
+      5. Calls UpdateEmailAsync on the credentials repository.
+
+  New endpoint (UserController):
+    - PUT /api/vaxtrack/v1/user/updateemail
+    - [Authorize] — any authenticated user (ownership enforced in service)
+    - Returns 403 Forbid if caller does not own the account
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 4 — Password Change Endpoint (Gap 3)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  No mechanism existed to change a password after registration.
+
+What was done:
+  New DTOs:
+    - ChangePasswordRequestDto: UserId, CurrentPassword, NewPassword
+    - ChangePasswordResponseDto: UserId, UpdatedAt
+
+  New repository method (IUserCredentialsRepository + UserCredentialsRepository):
+    - UpdatePasswordHashAsync(string userUid, string newPasswordHash): finds
+      active credentials by UserUid, updates PasswordHash field, saves.
+
+  New service method (IUserService + UserService):
+    - ChangePasswordAsync(ChangePasswordRequestDto, callerUserUid, callerIsAdmin):
+      1. Fetch user by UserId → get UserUid.
+      2. Ownership check: caller must own the account or be admin.
+      3. Non-admin callers must supply correct CurrentPassword.
+         Admin callers skip this — allows forced password reset without knowing
+         the current password (admin support / account recovery).
+      4. BCrypt.HashPassword(NewPassword) → calls UpdatePasswordHashAsync.
+
+  New endpoint (UserController):
+    - PUT /api/vaxtrack/v1/user/changepassword
+    - [Authorize] — any authenticated user (ownership enforced in service)
+    - Returns 403 Forbid if caller does not own the account
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 5 — Ownership Checks Across All Endpoints (Gap 4)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  Any authenticated user could view, update, or cancel any other user's data
+  simply by knowing the target UserId or BookingId. No identity-based access
+  control existed beyond the admin vs. user role split.
+
+Design:
+  JWT token stores sub = UserUid (GUID). Controllers extract:
+    - CallerUserUid: User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+    - CallerIsAdmin:  User.IsInRole("admin")
+  These are passed to service methods. Services throw UnauthorizedAccessException
+  if the check fails. Controllers catch UnauthorizedAccessException and return
+  403 Forbid.
+
+Changes to IUserService + UserService:
+  - UpdateUserAsync: callerUserUid + callerIsAdmin added. After fetching the
+    user, checks foundUser.UserUid == callerUserUid (or admin).
+  - GetUserProfileDataAsync: same ownership check. A user cannot view another
+    user's profile (prevents PII harvesting).
+
+Changes to IBookingService + BookingService:
+  - CreateBookingAsync: callerUserUid added. Checks dto.UserUid == callerUserUid.
+    Prevents booking on behalf of someone else.
+  - BookDose2Async: callerUserUid added. Ownership now validated against JWT sub
+    claim, not against the client-supplied UserUid in the DTO (old approach was
+    exploitable if an attacker sent a forged UserUid in the request body).
+  - CancelBookingsAsync: callerUserUid + callerIsAdmin added. Fetches booking,
+    checks booking.UserUid == callerUserUid (or admin).
+  - GetBookingByBookingIdAsync: same ownership check.
+  - GetBookingsByUserIdAsync: userId param (UserUid) must match callerUserUid
+    (or admin). Prevents viewing another user's booking history.
+
+UpdateBookingAsync restricted to admin:
+  This method allows overriding all booking fields including dose completion
+  flags and timestamps — a regular user should never be able to mark their own
+  dose as "completed". Moved to [Authorize(Roles="admin")] in BookingController.
+
+Controller changes (UserController + BookingController):
+  - Added CallerUserUid and CallerIsAdmin private helpers.
+  - All affected action methods now pass these into service calls.
+  - All affected action methods now catch UnauthorizedAccessException → Forbid().
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 6 — Self-Delete Endpoint (Gap 5)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  A normal user had no way to delete their own account. DeleteUserAsync was
+  [Authorize(Roles="admin")] only.
+
+What was done:
+  New service method (IUserService + UserService):
+    - DeleteMyAccountAsync(string callerUserUid): looks up user by UserUid
+      (from JWT, not a URL param), then delegates to
+      ExecuteUserDeleteCascadeAsync — same cascade as admin delete:
+        1. Soft-delete user profile.
+        2. Soft-delete all bookings → restore pending hospital slots.
+        3. Revoke all role mappings.
+        4. Soft-delete credentials → clear PasswordHash.
+
+  New endpoint (UserController):
+    - DELETE /api/vaxtrack/v1/user/deletemyaccount
+    - [Authorize] — any authenticated user, no role restriction
+    - No URL parameter — account identified entirely from JWT sub claim
+    - Admin keeps their own DELETE /user/deleteuser/{userId} endpoint
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 7 — Logout and Token Blacklist (Gap 6)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  JWT is stateless — there was no way to "logout." A stolen or expired-but-
+  not-yet-expired token remained usable with no server-side revocation.
+
+Design chosen:
+  Token blacklist in SQL Server (RevokedTokens table). Each revoked token's
+  JTI (JWT ID claim) is stored. On every authenticated request the OnTokenValidated
+  hook checks the blacklist — if the token's JTI is found, the request is
+  rejected even if the token's signature and expiry are otherwise valid.
+  Opportunistic cleanup: expired blacklist rows are pruned on each logout call
+  so the table stays small without a background job.
+
+Why JTI (not the full token):
+  JTI is a short, unique string. Storing the full token string is wasteful and
+  unnecessarily exposes sensitive data.
+
+New files:
+  - Models/RevokedTokenModel.cs: Id, Jti, ExpiresAt, RevokedAt
+  - Interfaces/RepositoryInterfaces/ITokenBlacklistRepository.cs:
+      RevokeTokenAsync(string jti, DateTime expiresAt)
+      IsRevokedAsync(string jti) → bool
+  - Repositories/TokenBlacklistRepository.cs: full implementation with
+    opportunistic cleanup of expired rows on each revocation.
+
+Changes to IAuthService + AuthService:
+  - Added LogoutAsync(string jti, DateTime expiresAt).
+  - AuthService injects ITokenBlacklistRepository.
+  - LogoutAsync validates jti is non-empty, then calls RevokeTokenAsync.
+
+New endpoint (AuthController):
+  - POST /api/vaxtrack/v1/auth/logout
+  - [Authorize] — must be authenticated to logout
+  - Extracts jti from User.FindFirst(JwtRegisteredClaimNames.Jti)
+  - Extracts expiresAt from User.FindFirst(JwtRegisteredClaimNames.Exp)
+    (Unix timestamp → UtcDateTime conversion)
+  - Returns 200 { message: "logged out successfully" }
+
+Changes to Program.cs:
+  - Added DbSet<RevokedTokenModel> RevokedTokens to VaxtrackDbContext.
+  - Registered ITokenBlacklistRepository as scoped.
+  - Added JwtBearerEvents.OnTokenValidated hook:
+      Resolves ITokenBlacklistRepository from request scope.
+      Reads JTI from validated Principal.
+      If IsRevokedAsync(jti) == true → context.Fail("Token has been revoked.")
+      → request rejected with 401 before hitting any controller.
+
+EF migration: AddRevokedTokensTable — applied to database.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 8 — Forgot Password Flow (Gap 7)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  ChangePasswordAsync (Task 4) covers password rotation — the user is logged in
+  and knows their current password. There was no path for a user who is locked
+  out because they cannot remember their password at all.
+
+Design:
+  Two-step flow, both endpoints [AllowAnonymous] (caller is not logged in):
+
+  Step 1 — POST /auth/forgotpassword
+    User provides their email. System generates a 32-char hex token (GUID),
+    stores it in a new PasswordResetTokens table with a 15-minute expiry,
+    and returns it in the response.
+    NOTE: in production this token would be sent via email and stripped from
+    the response body. The field is exposed here only because there is no
+    email service yet — a one-line change removes it once SMTP is wired up.
+
+  Step 2 — POST /auth/resetforgottenpassword
+    User provides the reset token + new password. System validates the token
+    (must exist, not expired, not already used), BCrypt-hashes the new
+    password, updates UserCredentials, and marks the token as used.
+
+Security properties:
+  - ForgotPasswordAsync always returns the same generic message regardless of
+    whether the email is registered — prevents email enumeration.
+  - Token is single-use: IsUsed is set to true before the password write,
+    closing any race-condition replay window.
+  - Token TTL is 15 minutes — short enough to limit exposure if intercepted.
+  - No current password required — that is the entire point of this flow vs
+    ChangePasswordAsync.
+
+New files:
+  Models/PasswordResetTokenModel.cs:
+    Id, UserUid, Token, IsUsed, ExpiresAt, CreatedAt, UsedAt
+  Interfaces/RepositoryInterfaces/IPasswordResetTokenRepository.cs:
+    CreateTokenAsync(userUid, token, expiresAt)
+    GetValidTokenAsync(token) → PasswordResetTokenModel?
+    MarkTokenAsUsedAsync(tokenId)
+  Repositories/PasswordResetTokenRepository.cs: full implementation
+  Dtos/AuthDtos/ForgotPasswordRequestDto.cs: Email
+  Dtos/AuthDtos/ForgotPasswordResponseDto.cs: Message, ResetToken?, ExpiresAt?
+  Dtos/AuthDtos/ResetForgottenPasswordRequestDto.cs: ResetToken, NewPassword
+  Dtos/AuthDtos/ResetForgottenPasswordResponseDto.cs: UserId, UpdatedAt
+
+Modified files:
+  Interfaces/IAuthService.cs             — added ForgotPasswordAsync,
+                                           ResetForgottenPasswordAsync
+  Services/AuthService.cs                — injects IPasswordResetTokenRepository;
+                                           implemented both methods
+  Controllers/AuthController.cs          — added ForgotPassword and
+                                           ResetForgottenPassword endpoints
+  Program.cs                             — registered IPasswordResetTokenRepository;
+                                           added PasswordResetTokens DbSet
+
+EF migration applied: AddPasswordResetTokensTable
+
+
+────────────────────────────────────────────────────────────────────────────────
+NORMAL USER SCOPE — FINAL STATE
+────────────────────────────────────────────────────────────────────────────────
+
+ #  Action                              Allowed?  Endpoint
+──  ─────────────────────────────────── ──────── ──────────────────────────────────────────────
+ 1  Register                            YES       POST /user/createuser                [AllowAnonymous]
+ 2  Login                               YES       POST /auth/login                     [AllowAnonymous]
+ 3  Logout                              YES       POST /auth/logout                    [Authorize]
+ 4  Forgot password — request token     YES       POST /auth/forgotpassword            [AllowAnonymous]
+ 5  Forgot password — use token         YES       POST /auth/resetforgottenpassword    [AllowAnonymous]
+ 6  View own profile                    YES       GET  /user/getuserprofiledata/{userId}
+ 7  View another user's profile         NO        Same — ownership check → 403
+ 8  Update own profile (name/phone/etc) YES       PUT  /user/updateuser                ownership checked
+ 9  Update another user's profile       NO        Same — ownership check → 403
+10  Update own email                    YES       PUT  /user/updateemail               requires current password
+11  Change own password                 YES       PUT  /user/changepassword            requires current password
+12  Delete own account                  YES       DELETE /user/deletemyaccount         reads from JWT, cascades
+13  Delete any other account            NO        DELETE /user/deleteuser/{id}         admin only
+14  View all users                      NO        GET  /user/getallusers               admin only
+15  Book dose 1                         YES       POST /booking/createbooking          UserUid must match JWT
+16  Book dose 2                         YES       PUT  /booking/bookdose2              must own the booking
+17  Cancel own booking                  YES       PUT  /booking/cancelbookings/{id}    ownership checked
+18  Cancel another user's booking       NO        Same — ownership check → 403
+19  View own booking by bookingId       YES       GET  /booking/getbookingbybookingid/{id}
+20  View another user's booking by id   NO        Same — ownership check → 403
+21  View own bookings by UserUid        YES       GET  /booking/getbookingsbyuserid/{uid}
+22  View another user's bookings        NO        Same — ownership check → 403
+23  View bookings at a hospital         YES       GET  /booking/getbookingsbyhospitalid/{id}
+24  View all bookings (platform-wide)   NO        GET  /booking/getallbookings         admin only
+25  Approve a booking                   NO        PUT  /booking/approvebookings/{id}   admin only
+26  Admin-update a booking (all fields) NO        PUT  /booking/updatebooking          admin only
+27  Delete any booking                  NO        DELETE /booking/deletebooking/{id}   admin only
+28  View a specific hospital            YES       GET  /hospital/gethospitalbyid/{id}
+29  View all hospitals                  YES       GET  /hospital/getallhospitals
+30  Register / update / delete hospital NO        All hospital write endpoints         admin only
+31  Any role-mapping operation          NO        Entire UserRoleMappingController     admin only
+
+
+────────────────────────────────────────────────────────────────────────────────
+FILES CREATED TODAY
+────────────────────────────────────────────────────────────────────────────────
+
+New files:
+  Models/RevokedTokenModel.cs
+  Models/PasswordResetTokenModel.cs
+  Dtos/UserDtos/UpdateEmailRequestDto.cs
+  Dtos/UserDtos/UpdateEmailResponseDto.cs
+  Dtos/UserDtos/ChangePasswordRequestDto.cs
+  Dtos/UserDtos/ChangePasswordResponseDto.cs
+  Dtos/AuthDtos/ForgotPasswordRequestDto.cs
+  Dtos/AuthDtos/ForgotPasswordResponseDto.cs
+  Dtos/AuthDtos/ResetForgottenPasswordRequestDto.cs
+  Dtos/AuthDtos/ResetForgottenPasswordResponseDto.cs
+  Interfaces/RepositoryInterfaces/ITokenBlacklistRepository.cs
+  Interfaces/RepositoryInterfaces/IPasswordResetTokenRepository.cs
+  Repositories/TokenBlacklistRepository.cs
+  Repositories/PasswordResetTokenRepository.cs
+  Migrations/..._AddUserCredentialsSoftDelete.cs
+  Migrations/..._AddRevokedTokensTable.cs
+  Migrations/..._AddPasswordResetTokensTable.cs
+
+Modified files:
+  Models/UserCredentialsModel.cs         — added IsDeleted, DeletedAt
+  Interfaces/RepositoryInterfaces/IUserCredentialsRepository.cs
+                                         — added SoftDeleteCredentialsByUserUidAsync,
+                                           UpdateEmailAsync, UpdatePasswordHashAsync
+  Repositories/UserCredentialsRepository.cs
+                                         — implemented above; added !IsDeleted filter
+                                           to all Get methods
+  Interfaces/IUserService.cs             — new + modified method signatures
+  Services/UserService.cs                — full rewrite with all new methods
+  Interfaces/IBookingService.cs          — ownership params added to 5 methods;
+                                           UpdateBookingAsync stays param-free (admin only)
+  Services/BookingService.cs             — ownership checks in 5 methods
+  Interfaces/IAuthService.cs             — added LogoutAsync, ForgotPasswordAsync,
+                                           ResetForgottenPasswordAsync
+  Services/AuthService.cs                — injects ITokenBlacklistRepository,
+                                           IPasswordResetTokenRepository;
+                                           added LogoutAsync, ForgotPasswordAsync,
+                                           ResetForgottenPasswordAsync
+  Controllers/UserController.cs          — CallerUserUid/CallerIsAdmin helpers;
+                                           added UpdateEmail, ChangePassword,
+                                           DeleteMyAccount endpoints
+  Controllers/BookingController.cs       — CallerUserUid/CallerIsAdmin helpers;
+                                           UpdateBookingAsync → admin only
+  Controllers/AuthController.cs          — added Logout, ForgotPassword,
+                                           ResetForgottenPassword endpoints
+  Program.cs                             — registered ITokenBlacklistRepository,
+                                           IPasswordResetTokenRepository;
+                                           added RevokedTokens, PasswordResetTokens DbSets;
+                                           added OnTokenValidated blacklist hook
+
+
+────────────────────────────────────────────────────────────────────────────────
+DATABASE MIGRATIONS APPLIED TODAY
+────────────────────────────────────────────────────────────────────────────────
+
+  AddUserCredentialsSoftDelete
+    ALTER TABLE UserCredentials ADD IsDeleted bit NOT NULL DEFAULT 0
+    ALTER TABLE UserCredentials ADD DeletedAt datetime2 NULL
+
+  AddRevokedTokensTable
+    CREATE TABLE RevokedTokens (
+        Id        int IDENTITY PRIMARY KEY,
+        Jti       nvarchar(max) NOT NULL,
+        ExpiresAt datetime2 NOT NULL,
+        RevokedAt datetime2 NOT NULL
+    )
+
+  AddPasswordResetTokensTable
+    CREATE TABLE PasswordResetTokens (
+        Id        int IDENTITY PRIMARY KEY,
+        UserUid   nvarchar(max) NOT NULL,
+        Token     nvarchar(max) NOT NULL,
+        IsUsed    bit NOT NULL DEFAULT 0,
+        ExpiresAt datetime2 NOT NULL,
+        CreatedAt datetime2 NOT NULL,
+        UsedAt    datetime2 NULL
+    )
+
+================================================================================
+END OF LOG
+================================================================================

@@ -57,5 +57,39 @@ namespace Vaxtrack.Controllers
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }
+
+        // Step 1 of the forgot-password flow — caller is NOT logged in
+        [AllowAnonymous]
+        [HttpPost]
+        public async Task<ActionResult<ForgotPasswordResponseDto>> ForgotPasswordAsync(ForgotPasswordRequestDto forgotPasswordRequestDto)
+        {
+            try
+            {
+                var response = await _authService.ForgotPasswordAsync(forgotPasswordRequestDto);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AuthController: ForgotPasswordAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Step 2 of the forgot-password flow — caller supplies the reset token + new password
+        [AllowAnonymous]
+        [HttpPost]
+        public async Task<ActionResult<ResetForgottenPasswordResponseDto>> ResetForgottenPasswordAsync(ResetForgottenPasswordRequestDto resetForgottenPasswordRequestDto)
+        {
+            try
+            {
+                var response = await _authService.ResetForgottenPasswordAsync(resetForgottenPasswordRequestDto);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AuthController: ResetForgottenPasswordAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
     }
 }
