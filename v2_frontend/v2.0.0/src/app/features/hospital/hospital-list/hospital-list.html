@@ -1,0 +1,93 @@
+<div class="min-h-screen bg-gray-50 p-6">
+  <div class="max-w-6xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Hospitals</h1>
+        <p class="text-sm text-gray-500 mt-1">Find a vaccination centre near you</p>
+      </div>
+      @if (authService.isAdmin()) {
+        <a
+          routerLink="/admin/dashboard"
+          class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          + Add Hospital
+        </a>
+      }
+    </div>
+
+    <!-- Loading -->
+    @if (loading()) {
+      <div class="flex justify-center py-20">
+        <p class="text-gray-400 text-sm">Loading hospitals...</p>
+      </div>
+    }
+
+    <!-- Error -->
+    @if (error()) {
+      <div class="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+        {{ error() }}
+      </div>
+    }
+
+    <!-- Hospital Cards -->
+    @if (!loading() && !error()) {
+      @if (hospitals().length === 0) {
+        <div class="text-center py-20 text-gray-400 text-sm">
+          No hospitals registered yet.
+        </div>
+      } @else {
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          @for (hospital of hospitals(); track hospital.hospitalId) {
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col gap-3">
+
+              <h2 class="text-base font-semibold text-gray-800">{{ hospital.hospitalName }}</h2>
+
+              <div class="text-sm text-gray-500 space-y-1">
+                <p>{{ hospital.hospitalAddress }}, {{ hospital.hospitalPinCode }}</p>
+                <p>{{ hospital.hospitalPhoneNumber }}</p>
+                <p>{{ hospital.hospitalEmail }}</p>
+              </div>
+
+              <div class="mt-auto">
+                <span
+                  class="text-xs font-medium px-2 py-1 rounded-full"
+                  [class]="hospital.slotsAvailable > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'"
+                >
+                  {{ hospital.slotsAvailable }} / {{ hospital.totalSlots }} slots available
+                </span>
+              </div>
+
+              <div class="flex gap-2 pt-2 border-t border-gray-100">
+                @if (!authService.isAdmin()) {
+                  <a
+                    routerLink="/booking"
+                    [queryParams]="{ hospitalId: hospital.hospitalId }"
+                    class="flex-1 text-center py-1.5 text-sm font-medium rounded-lg transition-colors"
+                    [class]="hospital.slotsAvailable > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-100 text-gray-400 pointer-events-none'"
+                  >
+                    Book Now
+                  </a>
+                }
+                @if (authService.isAdmin()) {
+                  <a
+                    routerLink="/admin/dashboard"
+                    [queryParams]="{ hospitalId: hospital.hospitalId }"
+                    class="flex-1 text-center py-1.5 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Manage
+                  </a>
+                }
+              </div>
+
+            </div>
+          }
+        </div>
+      }
+    }
+
+  </div>
+</div>
