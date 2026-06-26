@@ -22,6 +22,7 @@ export class Login {
 
   loading = signal(false);
   error = signal('');
+  showPassword = signal(false);
 
   get emailControl() { return this.form.get('email')!; }
   get passwordControl() { return this.form.get('password')!; }
@@ -40,7 +41,7 @@ export class Login {
     this.authService.login(request).subscribe({
       next: () => {
         this.loading.set(false);
-        const destination = this.authService.isAdmin() ? '/hospital' : '/user/profile';
+        const destination = this.authService.isAdmin() ? '/hospital' : '/user';
         this.router.navigate([destination]);
       },
       error: (err) => {

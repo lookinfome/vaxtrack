@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Dtos.HospitalDtos;
 
@@ -22,7 +23,9 @@ namespace Vaxtrack.Controllers
 
         // ── helpers ───────────────────────────────────────────────────────────────
 
-        private string CallerUserUid => User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? "";
+        private string CallerUserUid =>
+            User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ??
+            User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         private bool CallerIsAdmin   => User.IsInRole("admin");
 
         // ── endpoints ─────────────────────────────────────────────────────────────
@@ -34,7 +37,7 @@ namespace Vaxtrack.Controllers
             try
             {
                 var createdHospitalResponse = await _hospitalService.CreateHospitalAsync(createHospitalRequestDto);
-                return CreatedAtAction(nameof(GetHospitalByIdAsync), new { hospitalId = createdHospitalResponse.HospitalId }, createdHospitalResponse);
+                return CreatedAtAction("GetHospitalById", new { hospitalId = createdHospitalResponse.HospitalId }, createdHospitalResponse);
             }
             catch (Exception ex)
             {

@@ -1,0 +1,1 @@
+SELECT * FROM [vaxtrack_sqlserver].[dbo].[Users];

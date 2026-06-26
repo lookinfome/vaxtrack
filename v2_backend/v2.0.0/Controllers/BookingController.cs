@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Dtos.BookingDtos;
 
@@ -22,7 +23,9 @@ namespace Vaxtrack.Controllers
 
         // ── helpers ───────────────────────────────────────────────────────────────
 
-        private string CallerUserUid => User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? "";
+        private string CallerUserUid =>
+            User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ??
+            User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         private bool CallerIsAdmin   => User.IsInRole("admin");
 
         // ── endpoints ─────────────────────────────────────────────────────────────
@@ -33,7 +36,7 @@ namespace Vaxtrack.Controllers
             try
             {
                 var createdBookingResponse = await _bookingService.CreateBookingAsync(createBookingRequestDto, CallerUserUid);
-                return CreatedAtAction(nameof(GetBookingByBookingIdAsync), new { bookingId = createdBookingResponse.BookingId }, createdBookingResponse);
+                return CreatedAtAction("GetBookingById", new { bookingId = createdBookingResponse.BookingId }, createdBookingResponse);
             }
             catch (UnauthorizedAccessException)
             {

@@ -26,6 +26,11 @@ Log.Logger = new LoggerConfiguration()
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
     .CreateLogger();
 
+// Keep JWT claim names as short names (sub, role, jti) — without this, the default
+// JwtSecurityTokenHandler remaps "sub" → NameIdentifier URI before the principal is built,
+// breaking User.FindFirst(JwtRegisteredClaimNames.Sub) in every controller.
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Replace default logging with Serilog

@@ -25,7 +25,7 @@ namespace Vaxtrack.Controllers
             try
             {
                 var assignedRole = await _roleMappingService.AssignRoleAsync(assignRoleRequestDto);
-                return CreatedAtAction(nameof(GetUserRolesAsync), new { userUid = assignedRole.UserUid }, assignedRole);
+                return CreatedAtAction("GetUserRoles", new { userUid = assignedRole.UserUid }, assignedRole);
             }
             catch (Exception ex)
             {
