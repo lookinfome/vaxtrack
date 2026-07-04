@@ -18,6 +18,12 @@ namespace Vaxtrack.Interfaces
         // callerUserUid enforces that only the booking owner can schedule Dose 2
         Task<BookDose2ResponseDto> BookDose2Async(BookDose2RequestDto bookDose2Request, string callerUserUid);
 
+        // Rebooks a cancelled Dose 1 — the old slot was already freed when cancelled, so only the new slot is charged
+        Task<BookingProfileDataDto> RebookDose1Async(RebookDose1RequestDto request, string callerUserUid);
+
+        // callerUserUid enforces ownership; handles slot transfers when hospital changes
+        Task<BookingProfileDataDto> EditBookingAsync(EditBookingRequestDto editBookingRequest, string callerUserUid);
+
         // callerUserUid + callerIsAdmin: platform admin OR hospital-admin scoped to the booking's hospital can approve
         Task<BookingProfileDataDto> ApproveBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin);
 

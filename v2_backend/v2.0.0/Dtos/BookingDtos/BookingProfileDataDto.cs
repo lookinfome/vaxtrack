@@ -12,6 +12,7 @@ namespace Vaxtrack.Dtos.BookingDtos
         public bool IsDose1Completed { get; set; }
         public DateTime? Dose1CompletedDateTime { get; set; }  // null until approved
         public bool IsD1RequestCanceled { get; set; }
+        public bool IsD1RejectedByAdmin { get; set; }
 
         // dose 2 — null until dose 2 is booked
         public DateTime? Dose2RequestedDateTime { get; set; }
@@ -20,6 +21,7 @@ namespace Vaxtrack.Dtos.BookingDtos
         public bool IsDose2Completed { get; set; }
         public DateTime? Dose2CompletedDateTime { get; set; }  // null until approved
         public bool IsD2RequestCanceled { get; set; }
+        public bool IsD2RejectedByAdmin { get; set; }
 
         // vaccination status
         public bool IsVaccinationCompleted { get; set; }

@@ -5,6 +5,7 @@ import {
   Booking,
   CreateBookingRequest, CreateBookingResponse,
   UpdateBookingRequest, UpdateBookingResponse,
+  EditBookingRequest,
   BookDose2Request, BookDose2Response
 } from '../models/booking.model';
 
@@ -24,6 +25,10 @@ export class BookingService {
 
   bookDose2(request: BookDose2Request): Observable<BookDose2Response> {
     return this.http.put<BookDose2Response>(`${BASE}/bookDose2`, request);
+  }
+
+  editBooking(request: EditBookingRequest): Observable<Booking> {
+    return this.http.put<Booking>(`${BASE}/editBooking`, request);
   }
 
   approveBooking(bookingId: string): Observable<Booking> {

@@ -76,6 +76,15 @@ export interface UpdateBookingResponse {
   vaccinationCompletedDateTime: string | null;
 }
 
+export interface EditBookingRequest {
+  bookingId: string;
+  userUid: string;
+  doseNumber: number;
+  newHospitalUid: string;
+  newSlotNumber: number;
+  newRequestedDateTime: string;
+}
+
 export interface BookDose2Request {
   bookingId: string;
   userUid: string;

@@ -7,6 +7,7 @@ export interface LoginResponse {
   token: string;
   expiresAt: string;
   userId: string;
+  userUid: string;
   userName: string;
   email: string;
   userRole: boolean;

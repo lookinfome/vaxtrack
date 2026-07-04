@@ -10,10 +10,9 @@ http:
     type: json
     data: |-
       {
-        "email": "meera@test.com",
-        "password": "Vaxtrack@Test1"
+        "email": "vivekkr8235@gmail.com",
+        "password": "***REMOVED-SQL-PASSWORD***"
       }
-  auth: none
 
 settings:
   encodeUrl: true

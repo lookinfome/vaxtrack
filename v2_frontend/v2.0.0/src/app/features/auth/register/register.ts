@@ -2,7 +2,9 @@ import { Component, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { UserService } from '../../../core/services/user.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { CreateUserRequest } from '../../../core/models/user.model';
+import { FooterComponent } from '../../../shared/components/footer/footer';
 
 function passwordsMatch(): ValidatorFn {
   return (group: AbstractControl): ValidationErrors | null => {
@@ -14,13 +16,14 @@ function passwordsMatch(): ValidatorFn {
 
 @Component({
   selector: 'app-register',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, FooterComponent],
   templateUrl: './register.html',
   styleUrl: './register.css'
 })
 export class Register {
   private fb = inject(FormBuilder);
   private userService = inject(UserService);
+  private authService = inject(AuthService);
   private router = inject(Router);
 
   loading = signal(false);
@@ -96,8 +99,16 @@ export class Register {
 
     this.userService.createUser(request).subscribe({
       next: () => {
-        this.loading.set(false);
-        this.router.navigate(['/auth/login']);
+        this.authService.login({ email: request.email!, password: request.password! }).subscribe({
+          next: () => {
+            this.loading.set(false);
+            this.router.navigate(['/user']);
+          },
+          error: () => {
+            this.loading.set(false);
+            this.router.navigate(['/auth/login']);
+          }
+        });
       },
       error: (err) => {
         this.loading.set(false);

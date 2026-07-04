@@ -17,6 +17,7 @@ namespace Vaxtrack.Models
         public bool IsDose1Completed { get; set; } = false;
         public DateTime? Dose1CompletedDateTime { get; set; }  // null until approved
         public bool IsD1RequestCanceled { get; set; } = false;
+        public bool IsD1RejectedByAdmin { get; set; } = false;  // true when admin/hospital-admin cancelled dose 1
 
         // ── dose 2 ───────────────────────────────────────────────────────────────
         public DateTime? Dose2RequestedDateTime { get; set; }  // null until dose 2 is booked
@@ -25,6 +26,7 @@ namespace Vaxtrack.Models
         public bool IsDose2Completed { get; set; } = false;
         public DateTime? Dose2CompletedDateTime { get; set; }  // null until approved
         public bool IsD2RequestCanceled { get; set; } = false;
+        public bool IsD2RejectedByAdmin { get; set; } = false;  // true when admin/hospital-admin cancelled dose 2
 
         // ── vaccination status ───────────────────────────────────────────────────
         public bool IsVaccinationCompleted { get; set; } = false;

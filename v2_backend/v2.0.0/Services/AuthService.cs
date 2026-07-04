@@ -79,6 +79,7 @@ namespace Vaxtrack.Services
                     Token     = token,
                     ExpiresAt = expiry,
                     UserId    = foundUser.UserId,
+                    UserUid   = foundUser.UserUid,
                     UserName  = foundUser.UserName,
                     Email     = credentials.Email,
                     UserRole  = foundUser.UserRole

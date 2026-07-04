@@ -85,6 +85,25 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [HttpPut]
+        public async Task<ActionResult<BookingProfileDataDto>> EditBookingAsync(EditBookingRequestDto editBookingRequestDto)
+        {
+            try
+            {
+                var updatedBooking = await _bookingService.EditBookingAsync(editBookingRequestDto, CallerUserUid);
+                return Ok(updatedBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingController: EditBookingAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
         // Platform admin OR hospital-admin scoped to the booking's hospital
         [HttpPut("{bookingId}")]
         public async Task<ActionResult<BookingProfileDataDto>> ApproveBookingsAsync(string bookingId)

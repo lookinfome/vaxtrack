@@ -94,8 +94,8 @@ namespace Vaxtrack.Services
                 if (!foundBooking.IsDose1Completed)
                     throw new Exception($"BookingService: BookDose2Async - Dose 1 must be completed before booking Dose 2 for booking {bookDose2Request.BookingId}");
 
-                // Prevent re-booking Dose 2 if it is already scheduled
-                if (!string.IsNullOrEmpty(foundBooking.Dose2HospitalUid))
+                // Prevent re-booking Dose 2 if it is already scheduled and was not cancelled
+                if (!string.IsNullOrEmpty(foundBooking.Dose2HospitalUid) && !foundBooking.IsD2RequestCanceled)
                     throw new Exception($"BookingService: BookDose2Async - Dose 2 is already booked for booking {bookDose2Request.BookingId}");
 
                 if (foundBooking.IsDose2Completed)
@@ -125,6 +125,185 @@ namespace Vaxtrack.Services
             {
                 _logger.LogError(ex, "BookingService: BookDose2Async - {Message}", ex.Message);
                 throw new Exception($"BookingService: BookDose2Async - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<BookingProfileDataDto> RebookDose1Async(RebookDose1RequestDto request, string callerUserUid)
+        {
+            /*
+             * Rebook Logic (Dose 1):
+             * ----------------------
+             * Allows the booking owner to reschedule a Dose 1 that was previously cancelled
+             * (either self-cancelled or admin-rejected). The old hospital slot was already
+             * restored (+1) at cancellation time, so we only charge the new hospital (-1).
+             *
+             * Edge cases blocked:
+             *   - Caller is not the booking owner        → UnauthorizedAccessException
+             *   - Dose 1 is not in cancelled state       → throws
+             *   - Dose 1 is already completed            → throws (should never reach here)
+             *   - New requested date is not in future    → throws
+             *   - New hospital has no available slots    → throws
+             */
+
+            ArgumentNullException.ThrowIfNull(request);
+
+            try
+            {
+                if (request.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException("BookingService: RebookDose1Async - caller cannot rebook another user's booking");
+
+                var booking = await _bookingRepository.GetBookingDetailsByBookingIdAsync(request.BookingId);
+                if (booking == null)
+                    throw new Exception($"BookingService: RebookDose1Async - booking {request.BookingId} not found");
+
+                if (booking.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException("BookingService: RebookDose1Async - caller does not own this booking");
+
+                if (!booking.IsD1RequestCanceled)
+                    throw new Exception("BookingService: RebookDose1Async - dose 1 is not cancelled; use EditBookingAsync to change a pending booking");
+
+                if (booking.IsDose1Completed)
+                    throw new Exception("BookingService: RebookDose1Async - dose 1 is already completed and cannot be rebooked");
+
+                if (request.NewRequestedDateTime <= DateTime.UtcNow)
+                    throw new Exception("BookingService: RebookDose1Async - requested date must be in the future");
+
+                var newHospital = await _hospitalService.GetHospitalByIdAsync(request.NewHospitalUid);
+                if (newHospital.SlotsAvailable <= 0)
+                    throw new Exception($"BookingService: RebookDose1Async - hospital {request.NewHospitalUid} has no available slots");
+
+                // Take slot at new hospital — old slot was already released at cancellation time
+                await _hospitalService.UpdateAvailableSlotsAsync(request.NewHospitalUid, -1);
+
+                booking.Dose1HospitalUid = request.NewHospitalUid;
+                booking.Dose1SlotNumber  = request.NewSlotNumber;
+                booking.Dose1RequestedDateTime = request.NewRequestedDateTime;
+                booking.IsD1RequestCanceled = false;
+                booking.IsD1RejectedByAdmin = false;
+                booking.ModifiedAt = DateTime.UtcNow;
+
+                var updated = await _bookingRepository.UpdateBookingAsync(booking);
+                return MapToBookingProfileDto(updated);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingService: RebookDose1Async - {Message}", ex.Message);
+                throw new Exception($"BookingService: RebookDose1Async - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<BookingProfileDataDto> EditBookingAsync(EditBookingRequestDto request, string callerUserUid)
+        {
+            /*
+             * Edit Logic:
+             * -----------
+             * Allows the booking owner to change the hospital and/or scheduled date for a
+             * pending dose — i.e., one that has not yet been approved or cancelled.
+             *
+             * Slot management:
+             *   - Same hospital: the slot is already reserved; only the date is updated.
+             *     No slot counts change.
+             *   - Different hospital: the old hospital's slot is restored (+1) and the new
+             *     hospital's slot count is decremented (-1). The slot number is updated to
+             *     the value computed by the frontend from the new hospital's availability.
+             *
+             * Edge cases blocked:
+             *   - Caller is not the booking owner           → UnauthorizedAccessException
+             *   - Requested date is not in the future       → throws
+             *   - Dose 1 already completed or cancelled     → throws (for DoseNumber == 1)
+             *   - Dose 2 not yet booked                     → throws (for DoseNumber == 2)
+             *   - Dose 2 already completed or cancelled     → throws (for DoseNumber == 2)
+             *   - New hospital has no available slots       → throws (only on hospital change)
+             */
+
+            ArgumentNullException.ThrowIfNull(request);
+
+            try
+            {
+                if (request.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException("BookingService: EditBookingAsync - caller cannot edit another user's booking");
+
+                var booking = await _bookingRepository.GetBookingDetailsByBookingIdAsync(request.BookingId);
+                if (booking == null)
+                    throw new Exception($"BookingService: EditBookingAsync - booking {request.BookingId} not found");
+
+                if (booking.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException("BookingService: EditBookingAsync - caller does not own this booking");
+
+                if (request.NewRequestedDateTime <= DateTime.UtcNow)
+                    throw new Exception("BookingService: EditBookingAsync - requested date must be in the future");
+
+                var timestamp = DateTime.UtcNow;
+
+                if (request.DoseNumber == 1)
+                {
+                    if (booking.IsDose1Completed)
+                        throw new Exception("BookingService: EditBookingAsync - dose 1 is already completed and cannot be edited");
+                    if (booking.IsD1RequestCanceled)
+                        throw new Exception("BookingService: EditBookingAsync - dose 1 is cancelled and cannot be edited");
+
+                    bool hospitalChanged = booking.Dose1HospitalUid != request.NewHospitalUid;
+                    if (hospitalChanged)
+                    {
+                        var newHospital = await _hospitalService.GetHospitalByIdAsync(request.NewHospitalUid);
+                        if (newHospital.SlotsAvailable <= 0)
+                            throw new Exception($"BookingService: EditBookingAsync - hospital {request.NewHospitalUid} has no available slots");
+
+                        await _hospitalService.UpdateAvailableSlotsAsync(booking.Dose1HospitalUid, 1);
+                        await _hospitalService.UpdateAvailableSlotsAsync(request.NewHospitalUid, -1);
+                        booking.Dose1HospitalUid = request.NewHospitalUid;
+                        booking.Dose1SlotNumber  = request.NewSlotNumber;
+                    }
+
+                    booking.Dose1RequestedDateTime = request.NewRequestedDateTime;
+                }
+                else if (request.DoseNumber == 2)
+                {
+                    if (!booking.IsDose1Completed)
+                        throw new Exception("BookingService: EditBookingAsync - dose 1 must be completed before editing dose 2");
+                    if (string.IsNullOrEmpty(booking.Dose2HospitalUid))
+                        throw new Exception("BookingService: EditBookingAsync - dose 2 has not been booked yet");
+                    if (booking.IsDose2Completed)
+                        throw new Exception("BookingService: EditBookingAsync - dose 2 is already completed and cannot be edited");
+                    if (booking.IsD2RequestCanceled)
+                        throw new Exception("BookingService: EditBookingAsync - dose 2 is cancelled and cannot be edited");
+
+                    bool hospitalChanged = booking.Dose2HospitalUid != request.NewHospitalUid;
+                    if (hospitalChanged)
+                    {
+                        var newHospital = await _hospitalService.GetHospitalByIdAsync(request.NewHospitalUid);
+                        if (newHospital.SlotsAvailable <= 0)
+                            throw new Exception($"BookingService: EditBookingAsync - hospital {request.NewHospitalUid} has no available slots");
+
+                        await _hospitalService.UpdateAvailableSlotsAsync(booking.Dose2HospitalUid, 1);
+                        await _hospitalService.UpdateAvailableSlotsAsync(request.NewHospitalUid, -1);
+                        booking.Dose2HospitalUid = request.NewHospitalUid;
+                        booking.Dose2SlotNumber  = request.NewSlotNumber;
+                    }
+
+                    booking.Dose2RequestedDateTime = request.NewRequestedDateTime;
+                }
+                else
+                {
+                    throw new Exception($"BookingService: EditBookingAsync - invalid dose number {request.DoseNumber}");
+                }
+
+                booking.ModifiedAt = timestamp;
+                var updated = await _bookingRepository.UpdateBookingAsync(booking);
+                return MapToBookingProfileDto(updated);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingService: EditBookingAsync - {Message}", ex.Message);
+                throw new Exception($"BookingService: EditBookingAsync - {ex.Message}", ex);
             }
         }
 
@@ -274,6 +453,7 @@ namespace Vaxtrack.Services
                 {
                     // Cancel Dose 1 and free up the reserved hospital slot
                     foundBooking.IsD1RequestCanceled = true;
+                    foundBooking.IsD1RejectedByAdmin = callerIsAdmin;
                     foundBooking.ModifiedAt = timestamp;
                     await _bookingRepository.UpdateBookingAsync(foundBooking);
                     await _hospitalService.UpdateAvailableSlotsAsync(foundBooking.Dose1HospitalUid, 1);
@@ -285,6 +465,7 @@ namespace Vaxtrack.Services
                 {
                     // Cancel Dose 2 and free up the reserved hospital slot
                     foundBooking.IsD2RequestCanceled = true;
+                    foundBooking.IsD2RejectedByAdmin = callerIsAdmin;
                     foundBooking.ModifiedAt = timestamp;
                     await _bookingRepository.UpdateBookingAsync(foundBooking);
                     await _hospitalService.UpdateAvailableSlotsAsync(foundBooking.Dose2HospitalUid, 1);
@@ -558,6 +739,8 @@ namespace Vaxtrack.Services
             existingBooking.Dose2SlotNumber = bookDose2Request.Dose2SlotNumber;
             existingBooking.Dose2RequestedDateTime = bookDose2Request.Dose2RequestedDateTime;
             existingBooking.IsDose2Completed = false;
+            existingBooking.IsD2RequestCanceled = false;   // clear cancellation on rebook
+            existingBooking.IsD2RejectedByAdmin = false;   // clear admin-rejection flag on rebook
             existingBooking.ModifiedAt = DateTime.UtcNow;
             return existingBooking;
         }
@@ -655,7 +838,9 @@ namespace Vaxtrack.Services
                 IsVaccinationCompleted = booking.IsVaccinationCompleted,
                 VaccinationCompletedDateTime = booking.VaccinationCompletedDateTime,
                 IsD1RequestCanceled = booking.IsD1RequestCanceled,
+                IsD1RejectedByAdmin = booking.IsD1RejectedByAdmin,
                 IsD2RequestCanceled = booking.IsD2RequestCanceled,
+                IsD2RejectedByAdmin = booking.IsD2RejectedByAdmin,
                 CreatedAt = booking.CreatedAt,
                 ModifiedAt = booking.ModifiedAt
             };
