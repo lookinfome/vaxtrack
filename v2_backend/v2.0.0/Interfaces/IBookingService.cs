@@ -25,10 +25,22 @@ namespace Vaxtrack.Interfaces
         Task<BookingProfileDataDto> EditBookingAsync(EditBookingRequestDto editBookingRequest, string callerUserUid);
 
         // callerUserUid + callerIsAdmin: platform admin OR hospital-admin scoped to the booking's hospital can approve
-        Task<BookingProfileDataDto> ApproveBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin);
+        Task<BookingProfileDataDto> ApproveBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin, string? comment);
 
         // callerUserUid + callerIsAdmin: owner or admin can cancel
-        Task<BookingProfileDataDto> CancelBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin);
+        Task<BookingProfileDataDto> CancelBookingsAsync(string bookingId, string callerUserUid, bool callerIsAdmin, string? comment);
+
+        // Admin/hospital-admin only — declines a pending dose (distinct from a self-cancel), scoped like ApproveBookingsAsync
+        Task<BookingProfileDataDto> RejectBookingAsync(string bookingId, string callerUserUid, bool callerIsAdmin, string? comment);
+
+        // Chronological history of all lifecycle actions taken on a booking
+        Task<List<BookingAuditLogDto>> GetBookingAuditTrailAsync(string bookingId, string callerUserUid, bool callerIsAdmin);
+
+        // Bookings still needing action — scoped to caller's hospital-admin assignments, or all bookings for platform admin
+        Task<List<BookingProfileDataDto>> GetActionableBookingsAsync(string callerUserUid, bool callerIsAdmin);
+
+        // Read-only preview of the slot that would be assigned for this hospital+date — does not persist anything
+        Task<NextAvailableSlotResponseDto> GetNextAvailableSlotAsync(string hospitalId, DateTime date);
 
         Task DeleteBookingAsync(string bookingId);
         Task DeleteBookingsByUserUidAsync(string userUid);

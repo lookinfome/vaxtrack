@@ -12,5 +12,8 @@ namespace Vaxtrack.Interfaces
         // Forgot-password flow — does not require the user to be logged in
         Task<ForgotPasswordResponseDto> ForgotPasswordAsync(ForgotPasswordRequestDto forgotPasswordRequest);
         Task<ResetForgottenPasswordResponseDto> ResetForgottenPasswordAsync(ResetForgottenPasswordRequestDto resetRequest);
+
+        // Public reactivation-request flow for a disabled account — does not require login
+        Task<ForgotPasswordResponseDto> RequestAccountReactivationAsync(RequestAccountReactivationRequestDto request);
     }
 }

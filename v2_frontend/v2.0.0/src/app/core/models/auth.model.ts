@@ -32,3 +32,16 @@ export interface ResetForgottenPasswordResponse {
   userId: string;
   updatedAt: string;
 }
+
+export interface RequestAccountReactivationRequest {
+  email: string;
+  reason?: string;
+}
+
+// Distinguishes a disabled-account login failure from any other error — the login page
+// shows the reason + a link to the public reactivation form only when this code is present.
+export interface AccountDisabledError {
+  code: 'ACCOUNT_DISABLED';
+  message: string;
+  reason: string | null;
+}

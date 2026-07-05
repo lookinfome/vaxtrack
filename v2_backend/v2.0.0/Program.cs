@@ -40,10 +40,20 @@ builder.Host.UseSerilog();
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
 builder.Services.AddSingleton(jwtSettings);
 
+// Bind SmtpSettings and register as singleton so AuthService/EmailService can inject it
+var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>() ?? new SmtpSettings();
+builder.Services.AddSingleton(smtpSettings);
+
 // Configure JWT bearer authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // The runtime token handler (JsonWebTokenHandler) ignores the legacy
+        // JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear() call above — without this,
+        // it silently remaps short claim names (sub, role) to long claim-type URIs, breaking
+        // RoleClaimType = "role" below and any User.IsInRole("admin") / [Authorize(Roles=...)] check.
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
@@ -57,7 +67,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             RoleClaimType            = "role"
         };
 
-        // Reject tokens that have been explicitly revoked via /auth/logout
+        // Reject tokens that have been explicitly revoked via /auth/logout, or that belong to
+        // an account disabled AFTER the token was issued — this is what makes disabling a user
+        // take effect immediately on any already-live session, not just on their next login.
         options.Events = new JwtBearerEvents
         {
             OnTokenValidated = async context =>
@@ -68,7 +80,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
 
                 if (!string.IsNullOrEmpty(jti) && await blacklist.IsRevokedAsync(jti))
+                {
                     context.Fail("Token has been revoked.");
+                    return;
+                }
+
+                var sub = context.Principal?.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (!string.IsNullOrEmpty(sub))
+                {
+                    var userRepository = context.HttpContext.RequestServices
+                        .GetRequiredService<IUserRepository>();
+                    var user = await userRepository.GetUserDetailsByUserUidAsync(sub);
+
+                    if (user is not null && user.Status != "Active")
+                        context.Fail("Account has been disabled.");
+                }
             }
         };
     });
@@ -100,6 +126,12 @@ builder.Services.AddScoped<IHospitalRepository, HospitalRepository>();
 builder.Services.AddScoped<IHospitalService, HospitalService>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IBookingAuditLogRepository, BookingAuditLogRepository>();
+builder.Services.AddScoped<IHospitalAuditLogRepository, HospitalAuditLogRepository>();
+builder.Services.AddScoped<IUserAuditLogRepository, UserAuditLogRepository>();
+builder.Services.AddScoped<IUserRequestRepository, UserRequestRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IUserRoleMappingRepository, UserRoleMappingRepository>();
 builder.Services.AddScoped<IUserRoleMappingService, UserRoleMappingService>();
 builder.Services.AddScoped<IUserCredentialsRepository, UserCredentialsRepository>();
@@ -107,6 +139,7 @@ builder.Services.AddScoped<ITokenBlacklistRepository, TokenBlacklistRepository>(
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 builder.Services.AddScoped<IUtilityService, UtilityService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 var app = builder.Build();
 
@@ -118,6 +151,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// serves wwwroot/uploads/profile-pictures/{userUid}.jpg at /uploads/profile-pictures/{userUid}.jpg
+// Cache-Control: no-cache forces the browser to always revalidate via ETag/Last-Modified before
+// reusing a cached copy — without it, re-uploading a picture to the same fixed filename can leave
+// browsers showing the old image for a long time (heuristic freshness grows with file age).
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.CacheControl = "no-cache";
+    }
+});
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
@@ -143,4 +188,9 @@ public class VaxtrackDbContext : DbContext
     public DbSet<UserRoleMappingModel> UserRoleMappings { get; set; }
     public DbSet<RevokedTokenModel> RevokedTokens { get; set; }
     public DbSet<PasswordResetTokenModel> PasswordResetTokens { get; set; }
+    public DbSet<BookingAuditLogModel> BookingAuditLogs { get; set; }
+    public DbSet<HospitalAuditLogModel> HospitalAuditLogs { get; set; }
+    public DbSet<UserAuditLogModel> UserAuditLogs { get; set; }
+    public DbSet<UserRequestModel> UserRequests { get; set; }
+    public DbSet<NotificationModel> Notifications { get; set; }
 }

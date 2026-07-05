@@ -27,7 +27,18 @@ namespace Vaxtrack.Dtos.BookingDtos
         public bool IsVaccinationCompleted { get; set; }
         public DateTime? VaccinationCompletedDateTime { get; set; }  // null until complete
 
+        // server-computed display status — restricts what user-facing screens show
+        // (raw booleans above stay as-is for full-history/audit-trail use)
+        public string Dose1DisplayStatus { get; set; } = "";       // "Pending" | "Completed" | "Cancelled" | "Rejected"
+        public string Dose2DisplayStatus { get; set; } = "";       // same + "NotBooked"
+        public string VaccinationDisplayStatus { get; set; } = ""; // "NotVaccinated" | "Pending" | "PartiallyVaccinated" | "Vaccinated" | "Rejected"
+
         public DateTime CreatedAt { get; set; }
         public DateTime ModifiedAt { get; set; }
+
+        // Comma-joined email(s) of the active hospital-admin(s) for each dose's hospital —
+        // empty string if none assigned.
+        public string Dose1HospitalAdminEmails { get; set; } = "";
+        public string Dose2HospitalAdminEmails { get; set; } = "";
     }
 }

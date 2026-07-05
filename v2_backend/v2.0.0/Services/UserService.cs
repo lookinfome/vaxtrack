@@ -1,3 +1,7 @@
+using Microsoft.AspNetCore.Http;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Interfaces.RepositoryInterfaces;
 using Vaxtrack.Models;
@@ -9,11 +13,19 @@ namespace Vaxtrack.Services
 {
     public class UserService : IUserService
     {
+        private const long MaxProfilePictureBytes = 2 * 1024 * 1024; // 2 MB
+        private const int ProfilePictureMaxDimension = 512;
+        private const string FriendlyImageErrorMessage = "Please upload a valid image file (JPG, PNG, or WebP) under 2MB.";
+
         private readonly IUserRepository _userRepository;
         private readonly IUserCredentialsRepository _credentialsRepository;
         private readonly IBookingService _bookingService;
         private readonly IUserRoleMappingService _roleMappingService;
+        private readonly IUserAuditLogRepository _userAuditLogRepository;
+        private readonly IUserRequestRepository _userRequestRepository;
+        private readonly INotificationService _notificationService;
         private readonly IUtilityService _utilityService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly ILogger<UserService> _logger;
 
         public UserService(
@@ -21,14 +33,22 @@ namespace Vaxtrack.Services
             IUserCredentialsRepository credentialsRepository,
             IBookingService bookingService,
             IUserRoleMappingService roleMappingService,
+            IUserAuditLogRepository userAuditLogRepository,
+            IUserRequestRepository userRequestRepository,
+            INotificationService notificationService,
             IUtilityService utilityService,
+            IWebHostEnvironment webHostEnvironment,
             ILogger<UserService> logger)
         {
             _userRepository = userRepository;
             _credentialsRepository = credentialsRepository;
+            _userRequestRepository = userRequestRepository;
             _bookingService = bookingService;
             _roleMappingService = roleMappingService;
+            _userAuditLogRepository = userAuditLogRepository;
+            _notificationService = notificationService;
             _utilityService = utilityService;
+            _webHostEnvironment = webHostEnvironment;
             _logger = logger;
         }
 
@@ -194,6 +214,46 @@ namespace Vaxtrack.Services
             }
         }
 
+        public async Task<PagedUsersResponseDto> GetUsersPagedAsync(string? name, string? phone, string? userId, string? userUid, int page, int pageSize)
+        {
+            try
+            {
+                var allUsers = await GetAllUsersAsync();
+
+                IEnumerable<UserProfileDataDto> filtered = allUsers;
+                if (!string.IsNullOrWhiteSpace(name))
+                    filtered = filtered.Where(u => u.UserName.Contains(name, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(phone))
+                    filtered = filtered.Where(u => u.UserPhone.Contains(phone, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(userId))
+                    filtered = filtered.Where(u => u.UserId.Contains(userId, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(userUid))
+                    filtered = filtered.Where(u => u.UserUid.Contains(userUid, StringComparison.OrdinalIgnoreCase));
+
+                var filteredList = filtered.ToList();
+                var effectivePage = page < 1 ? 1 : page;
+                var effectivePageSize = pageSize < 1 ? 20 : pageSize;
+
+                var pageItems = filteredList
+                    .Skip((effectivePage - 1) * effectivePageSize)
+                    .Take(effectivePageSize)
+                    .ToList();
+
+                return new PagedUsersResponseDto
+                {
+                    Items = pageItems,
+                    TotalCount = filteredList.Count,
+                    Page = effectivePage,
+                    PageSize = effectivePageSize
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: GetUsersPagedAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: GetUsersPagedAsync - {ex.Message}", ex);
+            }
+        }
+
         public async Task<UpdateEmailResponseDto> UpdateEmailAsync(UpdateEmailRequestDto updateEmailRequestDto, string callerUserUid, bool callerIsAdmin)
         {
             /*
@@ -322,6 +382,89 @@ namespace Vaxtrack.Services
             }
         }
 
+        public async Task<UpdateUserResponseDto> UploadProfilePictureAsync(string userId, IFormFile file, string callerUserUid, bool callerIsAdmin)
+        {
+            /*
+             * Profile Picture Upload Logic:
+             * -----------------------------
+             * Storage-safety: the image is decoded, resized to a fixed max dimension, and
+             * re-encoded as JPEG to a FIXED per-user filename ({UserUid}.jpg) — every re-upload
+             * overwrites the previous file, so per-user storage never grows unbounded.
+             *
+             * Security: the file is validated by actually decoding it as an image (ImageSharp),
+             * not by trusting the client-supplied Content-Type header or file extension — a
+             * renamed non-image file will fail to decode and is rejected with a friendly message.
+             *
+             * Edge cases blocked:
+             *   - User not found            → throws.
+             *   - Caller not owner/admin    → throws UnauthorizedAccessException.
+             *   - File too large            → throws ArgumentException (friendly message).
+             *   - File is not a real image  → throws ArgumentException (friendly message).
+             */
+
+            ArgumentNullException.ThrowIfNull(file);
+
+            try
+            {
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if (foundUser is null)
+                    throw new Exception($"UserService: UploadProfilePictureAsync - user {userId} not found");
+
+                if (!callerIsAdmin && foundUser.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException($"UserService: UploadProfilePictureAsync - caller does not own account {userId}");
+
+                if (file.Length <= 0 || file.Length > MaxProfilePictureBytes)
+                    throw new ArgumentException(FriendlyImageErrorMessage);
+
+                var uploadsDir = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "profile-pictures");
+                Directory.CreateDirectory(uploadsDir);
+                var filePath = Path.Combine(uploadsDir, $"{foundUser.UserUid}.jpg");
+
+                try
+                {
+                    await using var inputStream = file.OpenReadStream();
+                    using var image = await Image.LoadAsync(inputStream);
+
+                    image.Mutate(x => x.Resize(new ResizeOptions
+                    {
+                        Mode = ResizeMode.Max,
+                        Size = new Size(ProfilePictureMaxDimension, ProfilePictureMaxDimension)
+                    }));
+
+                    await image.SaveAsync(filePath, new JpegEncoder());
+                }
+                catch (ArgumentException)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                    // ImageSharp throws various format-specific exceptions for unrecognized content —
+                    // normalize all of them to the same friendly, non-leaky message.
+                    throw new ArgumentException(FriendlyImageErrorMessage);
+                }
+
+                foundUser.ProfilePicturePath = $"/uploads/profile-pictures/{foundUser.UserUid}.jpg";
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                var updatedUser = await _userRepository.UpdateUserAsync(foundUser);
+
+                return MapToUpdateUserResponseDto(updatedUser);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
+            catch (ArgumentException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: UploadProfilePictureAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: UploadProfilePictureAsync - {ex.Message}", ex);
+            }
+        }
+
         public async Task DeleteUserAsync(string userId)
         {
             /*
@@ -347,14 +490,20 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task DeleteMyAccountAsync(string callerUserUid)
+        public async Task DeleteMyAccountAsync(string callerUserUid, string password, string? reason)
         {
             /*
              * Self-delete: the caller deletes their own account using the UserUid from their JWT.
-             * Delegates the same cascade as admin delete — no difference in what gets cleaned up.
+             * Requires re-entering the current password as a safety confirmation (same re-auth
+             * pattern as HospitalService.AuthorizeUnregisterAsync) before running the same cascade
+             * as admin-initiated delete.
+             *
+             * Edge cases blocked:
+             *   - Wrong password → throws ArgumentException (friendly 400, not a 500).
              */
 
             ArgumentNullException.ThrowIfNull(callerUserUid);
+            ArgumentException.ThrowIfNullOrWhiteSpace(password);
 
             try
             {
@@ -363,13 +512,246 @@ namespace Vaxtrack.Services
                 if (foundUser is null)
                     throw new Exception($"UserService: DeleteMyAccountAsync - account not found for caller");
 
+                var credentials = await _credentialsRepository.GetCredentialsByUserUidAsync(callerUserUid);
+                if (credentials is null || !BC.Verify(password, credentials.PasswordHash))
+                    throw new ArgumentException("Incorrect password. Please try again.");
+
                 await ExecuteUserDeleteCascadeAsync(foundUser);
             }
+            catch (ArgumentException) { throw; }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "UserService: DeleteMyAccountAsync - {Message}", ex.Message);
                 throw new Exception($"UserService: DeleteMyAccountAsync - {ex.Message}", ex);
             }
+        }
+
+        // ── lifecycle ──────────────────────────────────────────────────────────────
+
+        public async Task<UserProfileDataDto> DisableUserAsync(string userId, string callerUserUid, bool callerIsAdmin, string comment)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(comment);
+
+            try
+            {
+                if (!callerIsAdmin)
+                    throw new UnauthorizedAccessException("UserService: DisableUserAsync - only a platform admin may disable a user account");
+
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if (foundUser is null)
+                    throw new Exception($"UserService: DisableUserAsync - user {userId} not found");
+
+                if (foundUser.Status != "Active")
+                    throw new Exception($"UserService: DisableUserAsync - user {userId} must be Active to be disabled (current status: {foundUser.Status})");
+
+                foundUser.Status = "Disabled";
+                foundUser.StatusComment = comment;
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                var updated = await _userRepository.UpdateUserAsync(foundUser);
+
+                await LogUserAuditAsync(userId, "Disabled", callerUserUid, "admin", comment);
+                await _notificationService.NotifyAsync(foundUser.UserUid, $"Your account has been disabled. Reason: {comment}", "/account-reactivation");
+
+                var credentials = await _credentialsRepository.GetCredentialsByUserUidAsync(foundUser.UserUid);
+                return MapToUserProfileDto(updated, credentials?.Email ?? "");
+            }
+            catch (UnauthorizedAccessException) { throw; }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: DisableUserAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: DisableUserAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<UserProfileDataDto> ApproveUserReactivationAsync(string userId, string callerUserUid, bool callerIsAdmin, string? comment)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+
+            try
+            {
+                if (!callerIsAdmin)
+                    throw new UnauthorizedAccessException("UserService: ApproveUserReactivationAsync - only a platform admin may approve reactivation");
+
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if (foundUser is null)
+                    throw new Exception($"UserService: ApproveUserReactivationAsync - user {userId} not found");
+
+                if (foundUser.Status != "PendingReactivation")
+                    throw new Exception($"UserService: ApproveUserReactivationAsync - user {userId} has no pending reactivation request (current status: {foundUser.Status})");
+
+                foundUser.Status = "Active";
+                foundUser.StatusComment = comment;
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                var updated = await _userRepository.UpdateUserAsync(foundUser);
+
+                await ResolvePendingReactivationRequestAsync(foundUser.UserUid, "Approved", callerUserUid, comment);
+                await LogUserAuditAsync(userId, "ReactivationApproved", callerUserUid, "admin", comment);
+                await _notificationService.NotifyAsync(foundUser.UserUid, "Your account has been reactivated. You can log in again.");
+
+                var credentials = await _credentialsRepository.GetCredentialsByUserUidAsync(foundUser.UserUid);
+                return MapToUserProfileDto(updated, credentials?.Email ?? "");
+            }
+            catch (UnauthorizedAccessException) { throw; }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: ApproveUserReactivationAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: ApproveUserReactivationAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<UserProfileDataDto> RejectUserReactivationAsync(string userId, string callerUserUid, bool callerIsAdmin, string? comment)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+
+            try
+            {
+                if (!callerIsAdmin)
+                    throw new UnauthorizedAccessException("UserService: RejectUserReactivationAsync - only a platform admin may reject reactivation");
+
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if (foundUser is null)
+                    throw new Exception($"UserService: RejectUserReactivationAsync - user {userId} not found");
+
+                if (foundUser.Status != "PendingReactivation")
+                    throw new Exception($"UserService: RejectUserReactivationAsync - user {userId} has no pending reactivation request (current status: {foundUser.Status})");
+
+                foundUser.Status = "Disabled";
+                foundUser.StatusComment = comment;
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                var updated = await _userRepository.UpdateUserAsync(foundUser);
+
+                await ResolvePendingReactivationRequestAsync(foundUser.UserUid, "Rejected", callerUserUid, comment);
+                await LogUserAuditAsync(userId, "ReactivationRejected", callerUserUid, "admin", comment);
+                await _notificationService.NotifyAsync(foundUser.UserUid, $"Your reactivation request was declined.{(string.IsNullOrWhiteSpace(comment) ? "" : $" Reason: {comment}")}", "/account-reactivation");
+
+                var credentials = await _credentialsRepository.GetCredentialsByUserUidAsync(foundUser.UserUid);
+                return MapToUserProfileDto(updated, credentials?.Email ?? "");
+            }
+            catch (UnauthorizedAccessException) { throw; }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: RejectUserReactivationAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: RejectUserReactivationAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task MarkPendingReactivationAsync(string userUid)
+        {
+            // Called from the public (anonymous) reactivation-request flow — no caller principal
+            // to authorize against. Silently no-ops if the account isn't Disabled (e.g. already
+            // active, or a duplicate submission) so this never leaks account state to the caller.
+            ArgumentNullException.ThrowIfNull(userUid);
+
+            try
+            {
+                var foundUser = await _userRepository.GetUserDetailsByUserUidAsync(userUid);
+                if (foundUser is null || foundUser.Status != "Disabled") return;
+
+                foundUser.Status = "PendingReactivation";
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                await _userRepository.UpdateUserAsync(foundUser);
+
+                await LogUserAuditAsync(foundUser.UserId, "ReactivationRequested", userUid, "user", null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: MarkPendingReactivationAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: MarkPendingReactivationAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<UserProfileDataDto> PromoteToAdminAsync(string userId, string callerUserUid, bool callerIsAdmin)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+
+            try
+            {
+                if (!callerIsAdmin)
+                    throw new UnauthorizedAccessException("UserService: PromoteToAdminAsync - only a platform admin may grant admin rights");
+
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if (foundUser is null)
+                    throw new Exception($"UserService: PromoteToAdminAsync - user {userId} not found");
+
+                foundUser.UserRole = true;
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                var updated = await _userRepository.UpdateUserAsync(foundUser);
+
+                await _notificationService.NotifyAsync(foundUser.UserUid, "You have been granted platform admin rights.");
+
+                var credentials = await _credentialsRepository.GetCredentialsByUserUidAsync(foundUser.UserUid);
+                return MapToUserProfileDto(updated, credentials?.Email ?? "");
+            }
+            catch (UnauthorizedAccessException) { throw; }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: PromoteToAdminAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: PromoteToAdminAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<UserProfileDataDto> DemoteFromAdminAsync(string userId, string callerUserUid, bool callerIsAdmin)
+        {
+            ArgumentNullException.ThrowIfNull(userId);
+
+            try
+            {
+                if (!callerIsAdmin)
+                    throw new UnauthorizedAccessException("UserService: DemoteFromAdminAsync - only a platform admin may revoke admin rights");
+
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if (foundUser is null)
+                    throw new Exception($"UserService: DemoteFromAdminAsync - user {userId} not found");
+
+                foundUser.UserRole = false;
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                var updated = await _userRepository.UpdateUserAsync(foundUser);
+
+                await _notificationService.NotifyAsync(foundUser.UserUid, "Your platform admin rights have been revoked.");
+
+                var credentials = await _credentialsRepository.GetCredentialsByUserUidAsync(foundUser.UserUid);
+                return MapToUserProfileDto(updated, credentials?.Email ?? "");
+            }
+            catch (UnauthorizedAccessException) { throw; }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: DemoteFromAdminAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: DemoteFromAdminAsync - {ex.Message}", ex);
+            }
+        }
+
+        private async Task LogUserAuditAsync(string userId, string actionType, string actorUserUid, string actorRole, string? comment)
+        {
+            await _userAuditLogRepository.CreateEntryAsync(new UserAuditLogModel
+            {
+                UserId = userId,
+                ActionType = actionType,
+                ActorUserUid = actorUserUid,
+                ActorRole = actorRole,
+                Comment = comment,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        // Resolves the UserRequestModel row created by the public reactivation-request flow
+        // (AuthService.RequestAccountReactivationAsync) — without this, the Support page's
+        // pending-requests queue would show it as "Pending" forever even after the admin acts.
+        private async Task ResolvePendingReactivationRequestAsync(string userUid, string resolutionStatus, string callerUserUid, string? adminComment)
+        {
+            var pendingRequests = await _userRequestRepository.GetPendingByTypeAsync("AccountReactivation");
+            var request = pendingRequests
+                .Where(r => r.UserUid == userUid)
+                .OrderByDescending(r => r.CreatedAt)
+                .FirstOrDefault();
+
+            if (request is null) return;
+
+            request.Status = resolutionStatus;
+            request.AdminComment = adminComment;
+            request.ResolvedAt = DateTime.UtcNow;
+            request.ResolvedByUserUid = callerUserUid;
+            await _userRequestRepository.UpdateAsync(request);
         }
 
         // ── private helpers ───────────────────────────────────────────────────────
@@ -467,6 +849,7 @@ namespace Vaxtrack.Services
             return new UserProfileDataDto
             {
                 UserId             = user.UserId,
+                UserUid            = user.UserUid,
                 UserName           = user.UserName,
                 Email              = email,
                 UserBirthdate      = user.UserBirthdate,
@@ -477,6 +860,8 @@ namespace Vaxtrack.Services
                 UserAddress        = user.UserAddress,
                 UserPinCode        = user.UserPinCode,
                 ProfilePicturePath = user.ProfilePicturePath,
+                Status             = user.Status,
+                StatusComment      = user.StatusComment,
                 CreatedAt          = user.CreatedAt,
                 UpdatedAt          = user.UpdatedAt
             };

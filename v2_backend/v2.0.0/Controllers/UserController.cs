@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -103,6 +104,29 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [HttpPost]
+        public async Task<ActionResult<UpdateUserResponseDto>> UploadProfilePictureAsync([FromForm] string userId, [FromForm] IFormFile file)
+        {
+            try
+            {
+                var response = await _userService.UploadProfilePictureAsync(userId, file, CallerUserUid, CallerIsAdmin);
+                return Ok(response);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: UploadProfilePictureAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
         [Authorize(Roles = "admin")]
         [HttpGet]
         public async Task<ActionResult<List<UserProfileDataDto>>> GetAllUsersAsync()
@@ -115,6 +139,25 @@ namespace Vaxtrack.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "UserController: GetAllUsersAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Backs the Users Management tab — filterable, paginated
+        [Authorize(Roles = "admin")]
+        [HttpGet]
+        public async Task<ActionResult<PagedUsersResponseDto>> GetUsersPagedAsync(
+            [FromQuery] string? name, [FromQuery] string? phone, [FromQuery] string? userId, [FromQuery] string? userUid,
+            [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            try
+            {
+                var result = await _userService.GetUsersPagedAsync(name, phone, userId, userUid, page, pageSize);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: GetUsersPagedAsync - {Message}", ex.Message);
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }
@@ -138,14 +181,19 @@ namespace Vaxtrack.Controllers
             }
         }
 
-        // Self-delete: no userId param — account is identified from the JWT sub claim
+        // Self-delete: no userId param — account is identified from the JWT sub claim.
+        // Requires password re-entry in the body (see Support page's Delete My Account flow).
         [HttpDelete]
-        public async Task<ActionResult> DeleteMyAccountAsync()
+        public async Task<ActionResult> DeleteMyAccountAsync([FromBody] DeleteMyAccountRequestDto body)
         {
             try
             {
-                await _userService.DeleteMyAccountAsync(CallerUserUid);
+                await _userService.DeleteMyAccountAsync(CallerUserUid, body.Password, body.Reason);
                 return NoContent();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -166,6 +214,94 @@ namespace Vaxtrack.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "UserController: DeleteUserAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // ── lifecycle ─────────────────────────────────────────────────────────────
+
+        [Authorize(Roles = "admin")]
+        [HttpPut("{userId}")]
+        public async Task<ActionResult<UserProfileDataDto>> DisableUserAsync(string userId, UserActionCommentRequestDto body)
+        {
+            try
+            {
+                var updated = await _userService.DisableUserAsync(userId, CallerUserUid, CallerIsAdmin, body?.Comment ?? "");
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: DisableUserAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPut("{userId}")]
+        public async Task<ActionResult<UserProfileDataDto>> ApproveUserReactivationAsync(string userId, UserActionCommentRequestDto? body)
+        {
+            try
+            {
+                var updated = await _userService.ApproveUserReactivationAsync(userId, CallerUserUid, CallerIsAdmin, body?.Comment);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: ApproveUserReactivationAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPut("{userId}")]
+        public async Task<ActionResult<UserProfileDataDto>> RejectUserReactivationAsync(string userId, UserActionCommentRequestDto? body)
+        {
+            try
+            {
+                var updated = await _userService.RejectUserReactivationAsync(userId, CallerUserUid, CallerIsAdmin, body?.Comment);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: RejectUserReactivationAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPut("{userId}")]
+        public async Task<ActionResult<UserProfileDataDto>> PromoteToAdminAsync(string userId)
+        {
+            try
+            {
+                var updated = await _userService.PromoteToAdminAsync(userId, CallerUserUid, CallerIsAdmin);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: PromoteToAdminAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPut("{userId}")]
+        public async Task<ActionResult<UserProfileDataDto>> DemoteFromAdminAsync(string userId)
+        {
+            try
+            {
+                var updated = await _userService.DemoteFromAdminAsync(userId, CallerUserUid, CallerIsAdmin);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: DemoteFromAdminAsync - {Message}", ex.Message);
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }

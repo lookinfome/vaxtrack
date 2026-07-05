@@ -3,6 +3,7 @@ namespace Vaxtrack.Dtos.UserDtos
     public class UserProfileDataDto
     {
         public string UserId { get; set; } = "";
+        public string UserUid { get; set; } = "";
         public string UserName { get; set; } = "";
         public DateTime UserBirthdate { get; set; }
         public int UserAge { get; set; }
@@ -13,6 +14,8 @@ namespace Vaxtrack.Dtos.UserDtos
         public string UserPinCode { get; set; } = "";
         public string ProfilePicturePath { get; set; } = "";
         public bool UserRole { get; set; } = false;
+        public string Status { get; set; } = "Active";
+        public string? StatusComment { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

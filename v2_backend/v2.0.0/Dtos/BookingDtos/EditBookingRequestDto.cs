@@ -17,9 +17,6 @@ namespace Vaxtrack.Dtos.BookingDtos
         [Required(ErrorMessage = "new hospital uid is required")]
         public string NewHospitalUid { get; set; } = "";
 
-        [Required(ErrorMessage = "new slot number is required")]
-        public int NewSlotNumber { get; set; }
-
         [Required(ErrorMessage = "new requested date is required")]
         public DateTime NewRequestedDateTime { get; set; }
     }

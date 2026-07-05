@@ -1,5 +1,8 @@
+export type UserStatus = 'Active' | 'Disabled' | 'PendingReactivation';
+
 export interface User {
   userId: string;
+  userUid: string;
   userName: string;
   userBirthdate: string;
   userAge: number;
@@ -10,8 +13,22 @@ export interface User {
   userPinCode: string;
   profilePicturePath: string;
   userRole: boolean;
+  status: UserStatus;
+  statusComment: string | null;
   createdAt: string;
   updatedAt: string | null;
+}
+
+export interface PagedUsersResponse {
+  items: User[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface DeleteMyAccountRequest {
+  password: string;
+  reason?: string;
 }
 
 export interface CreateUserRequest {

@@ -5,15 +5,7 @@
     <div class="absolute -top-16 -right-16 w-64 h-64 bg-teal-500/15 rounded-full blur-3xl pointer-events-none"></div>
     <div class="absolute -bottom-16 -left-16 w-64 h-64 bg-slate-600/20 rounded-full blur-3xl pointer-events-none"></div>
 
-    <div class="max-w-6xl mx-auto px-6 py-8 relative z-10">
-
-      <a routerLink="/user"
-        class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors mb-5">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        Back to Profile
-      </a>
+    <div class="max-w-7xl mx-auto px-6 py-8 relative z-10">
 
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
         <div>
@@ -54,7 +46,7 @@
   </div>
 
   <!-- ── Content ───────────────────────────────────────────────────────── -->
-  <div class="max-w-6xl mx-auto px-6 py-6 space-y-5">
+  <div class="max-w-7xl mx-auto px-6 py-6 space-y-5">
 
     <!-- Global toasts -->
     @if (actionSuccess()) {
@@ -65,7 +57,7 @@
         {{ actionSuccess() }}
       </div>
     }
-    @if (actionError() && !showCreateModal() && !editingHospital() && !deletingHospital()) {
+    @if (actionError() && !showCreateModal() && !editingHospital() && !pendingAction()) {
       <div class="px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 flex items-start gap-2.5">
         <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -74,26 +66,56 @@
       </div>
     }
 
-    <!-- Search bar -->
+    <!-- Filter panel -->
     @if (!loading() && hospitals().length > 0) {
-      <div class="relative">
-        <span class="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
+          <svg class="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>
-        </span>
-        <input type="text" placeholder="Search by name, address or pin code…"
-          [value]="search()"
-          (input)="onSearch($any($event.target).value)"
-          class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm bg-white text-slate-900
-                 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent shadow-sm transition-all duration-200" />
-        @if (search()) {
-          <button (click)="onSearch('')"
-            class="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <h2 class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Filter Vaccination Centres</h2>
+        </div>
+        <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Hospital Name</label>
+            <input type="text" placeholder="e.g. City General Hospital"
+              [value]="filterName()"
+              (input)="onFilterNameChange($any($event.target).value)"
+              class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                     focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Pin Code</label>
+            <input type="text" placeholder="6-digit pin code" maxlength="6"
+              [value]="filterPinCode()"
+              (input)="onFilterPinCodeChange($any($event.target).value)"
+              class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                     focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
+            <input type="text" placeholder="10-digit number" maxlength="10"
+              [value]="filterPhone()"
+              (input)="onFilterPhoneChange($any($event.target).value)"
+              class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                     focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Email</label>
+            <input type="text" placeholder="hospital@example.com"
+              [value]="filterEmail()"
+              (input)="onFilterEmailChange($any($event.target).value)"
+              class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                     focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+          </div>
+        </div>
+        @if (hasActiveFilters()) {
+          <div class="px-5 pb-4 -mt-1">
+            <button (click)="clearFilters()"
+              class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all duration-200">
+              Clear Filters
+            </button>
+          </div>
         }
       </div>
     }
@@ -148,136 +170,278 @@
     }
 
     <!-- No search results -->
-    @if (!loading() && !error() && hospitals().length > 0 && filteredHospitals().length === 0) {
+    @if (!loading() && !error() && hospitals().length > 0 && visibleHospitals().length === 0) {
       <div class="py-14 flex flex-col items-center text-center gap-2">
         <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <p class="text-sm text-slate-500 font-medium">No hospitals match "<span class="text-slate-700">{{ search() }}</span>"</p>
-        <button (click)="onSearch('')" class="text-xs text-teal-600 hover:underline mt-1">Clear search</button>
+        <p class="text-sm text-slate-500 font-medium">No hospitals match the selected filters</p>
+        @if (hasActiveFilters()) {
+          <button (click)="clearFilters()" class="text-xs text-teal-600 hover:underline mt-1">Clear Filters</button>
+        }
       </div>
     }
 
-    <!-- Hospital grid -->
-    @if (!loading() && !error() && filteredHospitals().length > 0) {
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        @for (h of filteredHospitals(); track h.hospitalId) {
+    <!-- ── Master-detail layout ──────────────────────────────────────────── -->
+    @if (!loading() && !error() && visibleHospitals().length > 0) {
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
 
-          <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+        <!-- List column -->
+        <div class="lg:col-span-2 space-y-3">
+          @for (h of visibleHospitals(); track h.hospitalId) {
+            <button (click)="selectHospital(h)"
+              class="w-full text-left bg-white rounded-2xl shadow-sm border overflow-hidden transition-all duration-200 cursor-pointer"
+              [class]="selectedHospital()?.hospitalId === h.hospitalId ? 'border-teal-400 ring-2 ring-teal-100' : 'border-slate-100 hover:border-teal-200'">
 
-            <!-- Card top accent — teal if slots available, red if full -->
-            <div class="h-1"
-              [class]="h.slotsAvailable > 0
-                ? 'bg-gradient-to-r from-teal-400 to-emerald-500'
-                : 'bg-gradient-to-r from-red-400 to-rose-500'">
-            </div>
-
-            <div class="p-5 flex flex-col flex-1 gap-4">
-
-              <!-- Name + status badge -->
-              <div class="flex items-start justify-between gap-2">
-                <h2 class="text-base font-bold text-slate-800 leading-snug">{{ h.hospitalName }}</h2>
-                @if (h.slotsAvailable > 0) {
-                  <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full
-                               bg-emerald-100 text-emerald-700 shrink-0 ring-1 ring-emerald-200">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Open
-                  </span>
-                } @else {
-                  <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full
-                               bg-red-100 text-red-600 shrink-0 ring-1 ring-red-200">
-                    <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Full
-                  </span>
-                }
+              <div class="h-1"
+                [class]="h.status !== 'Active' ? 'bg-gradient-to-r from-slate-400 to-slate-500'
+                       : h.slotsAvailable > 0 ? 'bg-gradient-to-r from-teal-400 to-emerald-500'
+                       : 'bg-gradient-to-r from-red-400 to-rose-500'">
               </div>
 
-              <!-- Details -->
-              <div class="space-y-2 text-xs text-slate-500">
-                @if (h.hospitalAddress) {
-                  <div class="flex items-start gap-2">
-                    <svg class="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>{{ h.hospitalAddress }}@if (h.hospitalPinCode) {, {{ h.hospitalPinCode }}}</span>
-                  </div>
-                }
-                @if (h.hospitalPhoneNumber) {
-                  <div class="flex items-center gap-2">
-                    <svg class="w-3.5 h-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    <span>{{ h.hospitalPhoneNumber }}</span>
-                  </div>
-                }
-                @if (h.hospitalEmail) {
-                  <div class="flex items-center gap-2">
-                    <svg class="w-3.5 h-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <span class="truncate">{{ h.hospitalEmail }}</span>
-                  </div>
-                }
-                @if (!h.hospitalAddress && !h.hospitalPhoneNumber && !h.hospitalEmail) {
-                  <p class="text-slate-400 italic">Contact details not yet added</p>
-                }
-              </div>
-
-              <!-- Slot bar -->
-              <div class="space-y-1.5">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-slate-500">Slots available</span>
-                  <span class="font-semibold" [class]="h.slotsAvailable > 0 ? 'text-teal-700' : 'text-red-600'">
-                    {{ h.slotsAvailable }} / {{ h.totalSlots }}
-                  </span>
+              <div class="p-4 flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-bold text-slate-800 truncate">{{ h.hospitalName }}</p>
+                  <p class="text-xs text-slate-400 mt-0.5 truncate">{{ h.hospitalAddress || 'No address on file' }}</p>
                 </div>
-                <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div class="shrink-0 flex flex-col items-end gap-1">
+                  @switch (h.status) {
+                    @case ('Active') {
+                      @if (h.slotsAvailable > 0) {
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200">Open</span>
+                      } @else {
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600 ring-1 ring-red-200">Full</span>
+                      }
+                    }
+                    @case ('Disabled') { <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">Disabled</span> }
+                    @case ('PendingReactivation') { <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Reactivation Pending</span> }
+                    @case ('PendingUnregistration') { <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Unregistration Pending</span> }
+                  }
+                  <span class="text-xs text-slate-400">{{ h.slotsAvailable }}/{{ h.totalSlots }} slots</span>
+                </div>
+              </div>
+            </button>
+          }
+        </div>
+
+        <!-- Detail panel -->
+        <div class="lg:col-span-3 lg:sticky lg:top-6">
+          @if (!selectedHospital()) {
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 px-8 py-16 flex flex-col items-center text-center">
+              <div class="w-14 h-14 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mb-4">
+                <svg class="w-7 h-7 text-teal-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <p class="text-sm font-semibold text-slate-700 mb-1">Select a hospital</p>
+              <p class="text-xs text-slate-400 max-w-xs">Click a centre on the left to view its details and manage it.</p>
+            </div>
+          }
+
+          @if (selectedHospital(); as h) {
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div class="h-1"
+                [class]="h.status !== 'Active' ? 'bg-gradient-to-r from-slate-400 to-slate-500'
+                       : h.slotsAvailable > 0 ? 'bg-gradient-to-r from-teal-400 to-emerald-500'
+                       : 'bg-gradient-to-r from-red-400 to-rose-500'">
+              </div>
+
+              <div class="p-6">
+
+                <!-- Header + actions at top -->
+                <div class="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h2 class="text-lg font-bold text-slate-800">{{ h.hospitalName }}</h2>
+                    @switch (h.status) {
+                      @case ('Active') {
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 mt-1">Active</span>
+                      }
+                      @case ('Disabled') { <span class="inline-flex text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 mt-1">Disabled</span> }
+                      @case ('PendingReactivation') { <span class="inline-flex text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 mt-1">Reactivation Pending</span> }
+                      @case ('PendingUnregistration') { <span class="inline-flex text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 mt-1">Unregistration Pending</span> }
+                    }
+                  </div>
+                  <button (click)="closeDetail()"
+                    class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                @if (h.status !== 'Active' && h.statusComment) {
+                  <p class="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mb-4">
+                    <span class="font-semibold text-slate-600">Reason:</span> {{ h.statusComment }}
+                  </p>
+                }
+
+                <!-- Action buttons -->
+                <div class="flex flex-wrap gap-2 pb-4 mb-4 border-b border-slate-100">
+                  <button (click)="toggleHistory()"
+                    class="px-3.5 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all duration-200">
+                    {{ expandedHistory() ? 'Hide History' : 'View History' }}
+                  </button>
+
+                  @if (h.status === 'Active' && (authService.isAdmin() || isMyHospital(h))) {
+                    <button (click)="openEdit(h)"
+                      class="px-3.5 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all duration-200">
+                      Edit
+                    </button>
+                  }
+                  @if (h.status === 'Active' && authService.isAdmin()) {
+                    <button (click)="requestAction(h, 'disable')"
+                      class="px-3.5 py-2 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all duration-200">
+                      Disable
+                    </button>
+                  }
+                  @if (h.status === 'Disabled' && isMyHospital(h)) {
+                    <button (click)="requestAction(h, 'requestReactivation')"
+                      class="px-3.5 py-2 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-all duration-200">
+                      Request Reactivation
+                    </button>
+                  }
+                  @if (h.status === 'Disabled' && authService.isAdmin()) {
+                    <button (click)="requestAction(h, 'requestUnregister')"
+                      class="px-3.5 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 rounded-lg transition-all duration-200">
+                      Request Unregister
+                    </button>
+                  }
+                  @if (h.status === 'PendingReactivation' && authService.isAdmin()) {
+                    <button (click)="requestAction(h, 'approveReactivation')"
+                      class="px-3.5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 rounded-lg shadow-sm transition-all duration-200">
+                      Approve
+                    </button>
+                    <button (click)="requestAction(h, 'rejectReactivation')"
+                      class="px-3.5 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 rounded-lg transition-all duration-200">
+                      Reject
+                    </button>
+                  }
+                  @if (h.status === 'PendingReactivation' && isMyHospital(h)) {
+                    <span class="inline-flex items-center px-3.5 py-2 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg">Awaiting platform admin review</span>
+                  }
+                  @if (h.status === 'PendingUnregistration' && authService.isAdmin()) {
+                    <button (click)="requestAction(h, 'withdrawUnregister')"
+                      class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all duration-200">
+                      Withdraw Request
+                    </button>
+                  }
+                  @if (h.status === 'PendingUnregistration' && (isMyHospital(h) || authService.isAdmin())) {
+                    <button (click)="openAuthorize(h)"
+                      class="px-3.5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-lg shadow-sm transition-all duration-200">
+                      Authorize Unregistration
+                    </button>
+                  }
+                  @if (h.status === 'PendingUnregistration' && isMyHospital(h)) {
+                    <button (click)="requestAction(h, 'declineUnregister')"
+                      class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all duration-200">
+                      Decline
+                    </button>
+                  }
+                </div>
+
+                @if (expandedHistory()) {
+                  <div class="pb-4 mb-4 border-b border-slate-100">
+                    <app-hospital-audit-trail [hospitalId]="h.hospitalId" />
+                  </div>
+                }
+
+                <!-- Details -->
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-2">
+                  <div>
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Address</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ h.hospitalAddress || '—' }}@if (h.hospitalPinCode) {, {{ h.hospitalPinCode }}}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ h.hospitalPhoneNumber || '—' }}</dd>
+                  </div>
+                  <div class="sm:col-span-2">
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Email</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ h.hospitalEmail || '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Slot Capacity</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ h.slotsAvailable }} / {{ h.totalSlots }} available</dd>
+                  </div>
+                </dl>
+                <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-6">
                   <div class="h-full rounded-full transition-all duration-500"
                     [style.width.%]="slotsPercent(h)"
                     [class]="slotsPercent(h) > 40 ? 'bg-teal-500' : slotsPercent(h) > 0 ? 'bg-amber-400' : 'bg-red-400'">
                   </div>
                 </div>
-              </div>
 
-              <!-- Actions -->
-              <div class="mt-auto pt-3 border-t border-slate-100 flex gap-2">
-                @if (!authService.isAdmin()) {
-                  <a routerLink="/booking"
-                    class="flex-1 text-center py-2 text-sm font-semibold rounded-xl transition-all duration-200"
-                    [class]="h.slotsAvailable > 0
-                      ? 'bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-md shadow-teal-500/20 hover:from-teal-600 hover:to-teal-700'
-                      : 'bg-slate-100 text-slate-400 pointer-events-none'">
-                    @if (h.slotsAvailable > 0) { Book a Slot } @else { No Slots }
-                  </a>
-                }
-
+                <!-- Hospital Admins (platform admin only) -->
                 @if (authService.isAdmin()) {
-                  <button (click)="openEdit(h)"
-                    class="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold
-                           bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all duration-200">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit
-                  </button>
-                  <button (click)="confirmDelete(h)"
-                    class="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold
-                           bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-all duration-200 border border-red-100">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Delete
-                  </button>
+                  <div class="pt-4 border-t border-slate-100">
+                    <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Hospital Admins</h3>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <!-- Current hospital-admins (drop target + drag source for removal) -->
+                      <div>
+                        <p class="text-xs text-slate-400 mb-1.5">Current</p>
+                        <div
+                          cdkDropList
+                          id="hospitalAdminsDropList"
+                          [cdkDropListData]="hospitalAdmins()"
+                          [cdkDropListConnectedTo]="['availableUsersDropList']"
+                          (cdkDropListDropped)="onHospitalAdminDrop($event)"
+                          class="min-h-[80px] p-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 space-y-1.5">
+                          @if (hospitalAdminsLoading()) {
+                            <p class="text-xs text-slate-400 px-2 py-3">Loading...</p>
+                          }
+                          @if (!hospitalAdminsLoading() && hospitalAdmins().length === 0) {
+                            <p class="text-xs text-slate-400 px-2 py-3">Drag a user here to make them hospital-admin.</p>
+                          }
+                          @for (mapping of hospitalAdmins(); track mapping.id) {
+                            <div cdkDrag [cdkDragData]="mapping"
+                              class="flex items-center justify-between gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200 text-xs cursor-move">
+                              <span class="font-mono text-slate-600 truncate">{{ mapping.userUid }}</span>
+                              <button (click)="removeHospitalAdmin(mapping)" class="text-red-500 hover:text-red-700 shrink-0">✕</button>
+                            </div>
+                          }
+                        </div>
+                      </div>
+
+                      <!-- Search + available users (drag source) -->
+                      <div>
+                        <p class="text-xs text-slate-400 mb-1.5">Search users to add</p>
+                        <input type="text" placeholder="Search by name..."
+                          [value]="userSearchQuery()"
+                          (input)="onUserSearchChange($any($event.target).value)"
+                          class="w-full px-3 py-2 mb-1.5 border border-slate-200 rounded-lg text-xs bg-white
+                                 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                        <div
+                          cdkDropList
+                          id="availableUsersDropList"
+                          [cdkDropListData]="userSearchResults()"
+                          [cdkDropListConnectedTo]="['hospitalAdminsDropList']"
+                          (cdkDropListDropped)="onHospitalAdminDrop($event)"
+                          class="min-h-[80px] p-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 space-y-1.5">
+                          @if (userSearchLoading()) {
+                            <p class="text-xs text-slate-400 px-2 py-3">Searching...</p>
+                          }
+                          @if (!userSearchLoading() && userSearchQuery() && userSearchResults().length === 0) {
+                            <p class="text-xs text-slate-400 px-2 py-3">No users found.</p>
+                          }
+                          @for (user of userSearchResults(); track user.userUid) {
+                            <div cdkDrag [cdkDragData]="user"
+                              class="px-3 py-2 bg-white rounded-lg border border-slate-200 text-xs cursor-move">
+                              <p class="font-semibold text-slate-700 truncate">{{ user.userName }}</p>
+                              <p class="text-slate-400 font-mono truncate">{{ user.userId }}</p>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 }
+
               </div>
-
             </div>
-          </div>
+          }
+        </div>
 
-        }
       </div>
     }
 
@@ -471,49 +635,30 @@
     </div>
   }
 
-  <!-- ── Delete confirm modal ──────────────────────────────────────────── -->
-  @if (deletingHospital()) {
-    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center px-4">
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-        <div class="h-1 bg-gradient-to-r from-red-400 to-red-600"></div>
-        <div class="px-6 py-6">
-          <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-              <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Delete Hospital?</h3>
-              <p class="text-xs text-slate-500 mt-0.5">This action cannot be undone</p>
-            </div>
-          </div>
+  <!-- ── Lifecycle action modal ────────────────────────────────────────── -->
+  @if (pendingAction()) {
+    <app-confirm-action-modal
+      [title]="modalTitle"
+      [message]="modalMessage"
+      confirmLabel="Confirm"
+      cancelLabel="Back"
+      [showCommentBox]="true"
+      [commentRequired]="modalCommentRequired"
+      [accentColor]="modalAccentColor"
+      (confirmed)="confirmAction($event)"
+      (dismissed)="dismissAction()"
+    />
+  }
 
-          @if (actionError()) {
-            <div class="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">{{ actionError() }}</div>
-          }
-
-          <p class="text-sm text-slate-600 mb-6">
-            <span class="font-semibold text-slate-800">{{ deletingHospital()!.hospitalName }}</span> will be permanently removed.
-            Any linked bookings may be affected.
-          </p>
-
-          <div class="flex gap-3">
-            <button (click)="dismissDelete()"
-              class="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
-              Cancel
-            </button>
-            <button (click)="executeDelete()" [disabled]="actionLoading()"
-              class="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-red-500 to-red-600
-                     hover:from-red-600 hover:to-red-700 disabled:opacity-50 rounded-xl shadow-md shadow-red-500/25
-                     transition-all cursor-pointer active:scale-[0.98]">
-              @if (actionLoading()) { Deleting... } @else { Yes, Delete }
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+  <!-- ── Authorize unregister modal ─────────────────────────────────────── -->
+  @if (authorizingHospital()) {
+    <app-authorize-unregister-modal
+      [hospitalName]="authorizingHospital()!.hospitalName"
+      [loading]="authorizeLoading()"
+      [error]="authorizeError()"
+      (confirmed)="confirmAuthorize($event)"
+      (dismissed)="dismissAuthorize()"
+    />
   }
 
   <app-footer />

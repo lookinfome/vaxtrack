@@ -23,6 +23,7 @@ export class Login {
 
   loading = signal(false);
   error = signal('');
+  disabledReason = signal<string | null>(null);
   showPassword = signal(false);
 
   get emailControl() { return this.form.get('email')!; }
@@ -36,18 +37,23 @@ export class Login {
 
     this.loading.set(true);
     this.error.set('');
+    this.disabledReason.set(null);
 
     const request = this.form.getRawValue() as LoginRequest;
 
     this.authService.login(request).subscribe({
       next: () => {
         this.loading.set(false);
-        const destination = this.authService.isAdmin() ? '/hospital' : '/user';
-        this.router.navigate([destination]);
+        // Every role lands on Profile first — the nav bar handles further navigation from there.
+        this.router.navigate(['/user']);
       },
       error: (err) => {
         this.loading.set(false);
-        this.error.set(err.error?.message ?? 'Login failed. Please try again.');
+        if (err.error?.code === 'ACCOUNT_DISABLED') {
+          this.disabledReason.set(err.error?.reason ?? 'No reason was given.');
+        } else {
+          this.error.set(err.error?.message ?? 'Login failed. Please try again.');
+        }
         console.error('[Login] login failed:', err);
       }
     });

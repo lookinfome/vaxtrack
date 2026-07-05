@@ -1,9 +1,12 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-footer',
   imports: [RouterLink],
   templateUrl: './footer.html',
 })
-export class FooterComponent {}
+export class FooterComponent {
+  readonly authService = inject(AuthService);
+}

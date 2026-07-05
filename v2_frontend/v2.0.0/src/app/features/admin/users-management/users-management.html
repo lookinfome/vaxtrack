@@ -1,0 +1,347 @@
+<div class="min-h-screen bg-slate-50">
+
+  <!-- ── Page header ───────────────────────────────────────────────────── -->
+  <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 relative overflow-hidden">
+    <div class="absolute -top-16 -right-16 w-64 h-64 bg-teal-500/15 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-16 -left-16 w-64 h-64 bg-slate-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="max-w-7xl mx-auto px-6 py-8 relative z-10">
+      <div class="flex items-center gap-2.5 mb-1">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8zm6 3c1.657 0 3 1.567 3 3.5S18.657 21 17 21m-10 0c-1.657 0-3-1.567-3-3.5S5.343 14 7 14" />
+          </svg>
+        </div>
+        <h1 class="text-xl font-bold text-white">Users Management</h1>
+      </div>
+      <p class="text-sm text-slate-400 pl-11">
+        @if (!loading()) { {{ totalCount() }} registered users } @else { Loading users... }
+      </p>
+    </div>
+  </div>
+
+  <!-- ── Content ───────────────────────────────────────────────────────── -->
+  <div class="max-w-7xl mx-auto px-6 py-6 space-y-5">
+
+    @if (actionSuccess()) {
+      <div class="px-4 py-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 flex items-start gap-2.5">
+        <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        {{ actionSuccess() }}
+      </div>
+    }
+    @if (actionError() && !pendingAction()) {
+      <div class="px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 flex items-start gap-2.5">
+        <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        {{ actionError() }}
+      </div>
+    }
+
+    <!-- Filter panel -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
+        <svg class="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+        </svg>
+        <h2 class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Filter Users</h2>
+      </div>
+      <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Name</label>
+          <input type="text" placeholder="e.g. Jane Doe"
+            [value]="filterName()" (input)="onFilterNameChange($any($event.target).value)"
+            class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                   focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
+          <input type="text" placeholder="10-digit number"
+            [value]="filterPhone()" (input)="onFilterPhoneChange($any($event.target).value)"
+            class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                   focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">User ID</label>
+          <input type="text" placeholder="e.g. Jane-17-ab"
+            [value]="filterUserId()" (input)="onFilterUserIdChange($any($event.target).value)"
+            class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                   focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">User UID</label>
+          <input type="text" placeholder="System GUID"
+            [value]="filterUserUid()" (input)="onFilterUserUidChange($any($event.target).value)"
+            class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                   focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+        </div>
+      </div>
+      @if (hasActiveFilters()) {
+        <div class="px-5 pb-4 -mt-1">
+          <button (click)="clearFilters()"
+            class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all duration-200">
+            Clear Filters
+          </button>
+        </div>
+      }
+    </div>
+
+    <!-- Loading -->
+    @if (loading()) {
+      <div class="flex flex-col items-center justify-center py-24 gap-3">
+        <div class="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-sm text-slate-400">Loading users...</p>
+      </div>
+    }
+
+    @if (!loading() && error()) {
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 px-8 py-12 text-center">
+        <p class="text-sm font-semibold text-slate-700 mb-1">Failed to load users</p>
+        <p class="text-xs text-slate-400">{{ error() }}</p>
+      </div>
+    }
+
+    @if (!loading() && !error() && users().length === 0) {
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 px-8 py-16 text-center">
+        <p class="text-sm font-semibold text-slate-700 mb-1">No users match the selected filters</p>
+        @if (hasActiveFilters()) {
+          <button (click)="clearFilters()" class="text-xs text-teal-600 hover:underline mt-1">Clear Filters</button>
+        }
+      </div>
+    }
+
+    @if (!loading() && !error() && users().length > 0) {
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+
+        <!-- List column -->
+        <div class="lg:col-span-2 space-y-3">
+          @for (u of users(); track u.userId) {
+            <button (click)="selectUser(u)"
+              class="w-full text-left bg-white rounded-2xl shadow-sm border overflow-hidden transition-all duration-200 cursor-pointer"
+              [class]="selectedUser()?.userId === u.userId ? 'border-teal-400 ring-2 ring-teal-100' : 'border-slate-100 hover:border-teal-200'">
+              <div class="p-4 flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-bold text-slate-800 truncate">{{ u.userName }}</p>
+                  <p class="text-xs text-slate-400 mt-0.5 truncate">{{ u.email }}</p>
+                </div>
+                <div class="shrink-0 flex flex-col items-end gap-1">
+                  @if (u.userRole) {
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Admin</span>
+                  }
+                  @switch (u.status) {
+                    @case ('Active') { <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Active</span> }
+                    @case ('Disabled') { <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">Disabled</span> }
+                    @case ('PendingReactivation') { <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Reactivation Pending</span> }
+                  }
+                </div>
+              </div>
+            </button>
+          }
+
+          <!-- Pagination -->
+          @if (totalPages() > 1) {
+            <div class="flex items-center justify-between pt-2">
+              <button (click)="goToPage(page() - 1)" [disabled]="page() === 1"
+                class="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg disabled:opacity-40">
+                Previous
+              </button>
+              <span class="text-xs text-slate-400">Page {{ page() }} of {{ totalPages() }}</span>
+              <button (click)="goToPage(page() + 1)" [disabled]="page() === totalPages()"
+                class="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg disabled:opacity-40">
+                Next
+              </button>
+            </div>
+          }
+        </div>
+
+        <!-- Detail panel -->
+        <div class="lg:col-span-3 lg:sticky lg:top-6">
+          @if (!selectedUser()) {
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 px-8 py-16 flex flex-col items-center text-center">
+              <p class="text-sm font-semibold text-slate-700 mb-1">Select a user</p>
+              <p class="text-xs text-slate-400 max-w-xs">Click a user on the left to view details and manage their account and roles.</p>
+            </div>
+          }
+
+          @if (selectedUser(); as u) {
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div class="p-6">
+
+                <div class="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <h2 class="text-lg font-bold text-slate-800">{{ u.userName }}</h2>
+                    <p class="text-xs text-slate-400 font-mono mt-0.5">{{ u.userId }}</p>
+                  </div>
+                  <button (click)="closeDetail()"
+                    class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                @if (u.status !== 'Active' && u.statusComment) {
+                  <p class="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mb-4">
+                    <span class="font-semibold text-slate-600">Reason:</span> {{ u.statusComment }}
+                  </p>
+                }
+
+                <!-- Action buttons -->
+                <div class="flex flex-wrap gap-2 pb-4 mb-4 border-b border-slate-100">
+                  @if (u.status === 'Active') {
+                    <button (click)="requestAction(u, 'disable')"
+                      class="px-3.5 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 rounded-lg transition-all duration-200">
+                      Disable Account
+                    </button>
+                  }
+                  @if (u.status === 'PendingReactivation') {
+                    <button (click)="requestAction(u, 'approveReactivation')"
+                      class="px-3.5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 rounded-lg shadow-sm transition-all duration-200">
+                      Approve Reactivation
+                    </button>
+                    <button (click)="requestAction(u, 'rejectReactivation')"
+                      class="px-3.5 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 rounded-lg transition-all duration-200">
+                      Reject Reactivation
+                    </button>
+                  }
+                  @if (u.status === 'Disabled') {
+                    <span class="inline-flex items-center px-3.5 py-2 text-xs font-medium text-slate-500 bg-slate-100 rounded-lg">
+                      Awaiting the user's own reactivation request
+                    </span>
+                  }
+                </div>
+
+                <!-- Details -->
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-6">
+                  <div>
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Email</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ u.email }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ u.userPhone || '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Age / Gender</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ u.userAge }} · {{ u.userGender || '—' }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Registered</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ u.createdAt | date: 'mediumDate' }}</dd>
+                  </div>
+                  <div class="sm:col-span-2">
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Address</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ u.userAddress || '—' }}@if (u.userPinCode) {, {{ u.userPinCode }}}</dd>
+                  </div>
+                  <div class="sm:col-span-2">
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">User UID</dt>
+                    <dd class="text-xs font-mono text-slate-500 mt-0.5 break-all">{{ u.userUid }}</dd>
+                  </div>
+                </dl>
+
+                <!-- Role management -->
+                <div class="pt-4 border-t border-slate-100">
+                  <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Roles</h3>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Current roles (drop target + drag source for removal) -->
+                    <div>
+                      <p class="text-xs text-slate-400 mb-1.5">Current Roles</p>
+                      <div
+                        cdkDropList
+                        id="currentRolesDropList"
+                        [cdkDropListData]="currentRolesData()"
+                        [cdkDropListConnectedTo]="['availableRolesDropList']"
+                        (cdkDropListDropped)="onRoleDrop($event)"
+                        class="min-h-[80px] p-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 space-y-1.5">
+                        @if (userRolesLoading()) {
+                          <p class="text-xs text-slate-400 px-2 py-3">Loading...</p>
+                        }
+                        @if (!userRolesLoading() && !u.userRole && hospitalAdminMappings().length === 0) {
+                          <p class="text-xs text-slate-400 px-2 py-3">Drag a role here to assign it.</p>
+                        }
+                        @if (u.userRole) {
+                          <div cdkDrag [cdkDragData]="'admin-chip'"
+                            class="flex items-center justify-between gap-2 px-3 py-2 bg-white rounded-lg border border-purple-200 text-xs cursor-move">
+                            <span class="font-semibold text-purple-700">Platform Admin</span>
+                            <button (click)="demoteAdmin()" class="text-red-500 hover:text-red-700 shrink-0">✕</button>
+                          </div>
+                        }
+                        @for (mapping of hospitalAdminMappings(); track mapping.id) {
+                          <div cdkDrag [cdkDragData]="mapping"
+                            class="flex items-center justify-between gap-2 px-3 py-2 bg-white rounded-lg border border-blue-200 text-xs cursor-move">
+                            <span class="font-semibold text-blue-700 truncate">Hospital Admin — {{ hospitalName(mapping.contextId) }}</span>
+                            <button (click)="removeHospitalAdminMapping(mapping)" class="text-red-500 hover:text-red-700 shrink-0">✕</button>
+                          </div>
+                        }
+                      </div>
+
+                      @if (pendingHospitalAdminDrop()) {
+                        <div class="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                          <label class="block text-xs font-semibold text-blue-700 mb-1.5">Which hospital?</label>
+                          <select [value]="pickedHospitalId()" (change)="pickedHospitalId.set($any($event.target).value)"
+                            class="w-full px-2 py-1.5 border border-blue-200 rounded-lg text-xs bg-white mb-2">
+                            <option value="">Select a hospital</option>
+                            @for (h of hospitals(); track h.hospitalId) {
+                              <option [value]="h.hospitalId">{{ h.hospitalName }}</option>
+                            }
+                          </select>
+                          <div class="flex gap-2">
+                            <button (click)="cancelHospitalAdminAssignment()" class="flex-1 px-2 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg">Cancel</button>
+                            <button (click)="confirmHospitalAdminAssignment()" [disabled]="!pickedHospitalId()"
+                              class="flex-1 px-2 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg">Confirm</button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+
+                    <!-- Available roles (drag source) -->
+                    <div>
+                      <p class="text-xs text-slate-400 mb-1.5">Available Roles</p>
+                      <div
+                        cdkDropList
+                        id="availableRolesDropList"
+                        [cdkDropListData]="availableRolesData()"
+                        [cdkDropListConnectedTo]="['currentRolesDropList']"
+                        (cdkDropListDropped)="onRoleDrop($event)"
+                        class="min-h-[80px] p-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 space-y-1.5">
+                        @for (role of availableRolesData(); track role) {
+                          <div cdkDrag [cdkDragData]="role"
+                            class="px-3 py-2 bg-white rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 cursor-move">
+                            {{ role === 'admin' ? 'Admin' : 'Hospital Admin' }}
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          }
+        </div>
+
+      </div>
+    }
+
+  </div>
+
+  @if (pendingAction()) {
+    <app-confirm-action-modal
+      [title]="modalTitle"
+      [message]="modalMessage"
+      confirmLabel="Confirm"
+      cancelLabel="Back"
+      [showCommentBox]="true"
+      [commentRequired]="modalCommentRequired"
+      accentColor="red"
+      (confirmed)="confirmAction($event)"
+      (dismissed)="dismissAction()"
+    />
+  }
+
+  <app-footer />
+
+</div>

@@ -16,5 +16,6 @@ namespace Vaxtrack.Interfaces.RepositoryInterfaces
         Task<bool> HasActiveBookingsForHospitalAsync(string hospitalId);
         Task DeleteBookingAsync(BookingModel bookingDeleteRequest);
         Task<bool> IsBookingExistsAsync(string userId);
+        Task<DateTime?> GetLatestSlotEndTimeForHospitalAndDateAsync(string hospitalId, DateTime date);
     }
 }

@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Vaxtrack.Dtos.AuthDtos;
+using Vaxtrack.Exceptions;
 using Vaxtrack.Interfaces;
 using Vaxtrack.Interfaces.RepositoryInterfaces;
 using Vaxtrack.Models;
@@ -14,24 +15,39 @@ namespace Vaxtrack.Services
     {
         private readonly IUserCredentialsRepository _credentialsRepository;
         private readonly IUserRepository _userRepository;
+        private readonly IUserService _userService;
+        private readonly IUserRequestRepository _userRequestRepository;
+        private readonly INotificationService _notificationService;
         private readonly ITokenBlacklistRepository _tokenBlacklist;
         private readonly IPasswordResetTokenRepository _passwordResetTokenRepository;
+        private readonly IEmailService _emailService;
         private readonly JwtSettings _jwtSettings;
+        private readonly SmtpSettings _smtpSettings;
         private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             IUserCredentialsRepository credentialsRepository,
             IUserRepository userRepository,
+            IUserService userService,
+            IUserRequestRepository userRequestRepository,
+            INotificationService notificationService,
             ITokenBlacklistRepository tokenBlacklist,
             IPasswordResetTokenRepository passwordResetTokenRepository,
+            IEmailService emailService,
             JwtSettings jwtSettings,
+            SmtpSettings smtpSettings,
             ILogger<AuthService> logger)
         {
             _credentialsRepository = credentialsRepository;
             _userRepository = userRepository;
+            _userService = userService;
+            _userRequestRepository = userRequestRepository;
+            _notificationService = notificationService;
             _tokenBlacklist = tokenBlacklist;
             _passwordResetTokenRepository = passwordResetTokenRepository;
+            _emailService = emailService;
             _jwtSettings = jwtSettings;
+            _smtpSettings = smtpSettings;
             _logger = logger;
         }
 
@@ -71,6 +87,11 @@ namespace Vaxtrack.Services
                 if (foundUser is null)
                     throw new Exception("AuthService: LoginAsync - invalid email or password");
 
+                // Checked only after password verification succeeds — never before — so a wrong
+                // password guess can't be used to discover whether an account is disabled.
+                if (foundUser.Status == "Disabled" || foundUser.Status == "PendingReactivation")
+                    throw new AccountDisabledException(foundUser.StatusComment);
+
                 var expiry = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes);
                 var token = GenerateJwtToken(foundUser, credentials.Email, expiry);
 
@@ -84,6 +105,10 @@ namespace Vaxtrack.Services
                     Email     = credentials.Email,
                     UserRole  = foundUser.UserRole
                 };
+            }
+            catch (AccountDisabledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -162,9 +187,9 @@ namespace Vaxtrack.Services
              * registered or not. This prevents email enumeration (an attacker cannot determine
              * which emails exist on the platform from this endpoint).
              *
-             * Token delivery: in production the token would be emailed and stripped from the
-             * response. There is no email service here yet, so the token is returned directly
-             * in the response body for development and testing.
+             * Token delivery: the reset link is emailed via IEmailService and never included
+             * in the response body. If the email fails to send, the failure is logged but the
+             * request still returns the generic success message (does not leak account existence).
              *
              * Edge cases blocked:
              *   - Null request       → ArgumentNullException.
@@ -193,17 +218,76 @@ namespace Vaxtrack.Services
 
                 await _passwordResetTokenRepository.CreateTokenAsync(foundUser.UserUid, token, expiresAt);
 
-                return new ForgotPasswordResponseDto
+                var resetLink = $"{_smtpSettings.FrontendResetPasswordUrl}?token={token}";
+                try
                 {
-                    Message    = genericMessage,
-                    ResetToken = token,     // omit / null this once email delivery is wired up
-                    ExpiresAt  = expiresAt
-                };
+                    await _emailService.SendPasswordResetEmailAsync(credentials.Email, resetLink);
+                }
+                catch (Exception ex)
+                {
+                    // Log but do not fail the request or leak whether the email exists/send succeeded —
+                    // the generic response goes out either way (enumeration defence, see method header).
+                    _logger.LogError(ex, "AuthService: ForgotPasswordAsync - failed to send reset email for {Email}", forgotPasswordRequest.Email);
+                }
+
+                return new ForgotPasswordResponseDto { Message = genericMessage };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "AuthService: ForgotPasswordAsync - {Message}", ex.Message);
                 throw new Exception($"AuthService: ForgotPasswordAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<ForgotPasswordResponseDto> RequestAccountReactivationAsync(RequestAccountReactivationRequestDto request)
+        {
+            /*
+             * Public Reactivation Request Logic:
+             * ------------------------------------
+             * The caller is NOT logged in — a disabled account can never authenticate (see
+             * LoginAsync), so this is the only path back for them. Identified by email rather
+             * than a JWT.
+             *
+             * Security: always returns the same generic message regardless of whether the email
+             * matches a real, disabled account — same anti-enumeration convention as ForgotPasswordAsync.
+             * Silently no-ops (via UserService.MarkPendingReactivationAsync) if the account isn't
+             * actually Disabled.
+             */
+
+            ArgumentNullException.ThrowIfNull(request);
+
+            const string genericMessage = "If this account is disabled, your reactivation request has been submitted for review.";
+
+            try
+            {
+                var credentials = await _credentialsRepository.GetCredentialsByEmailAsync(request.Email);
+                if (credentials is null)
+                    return new ForgotPasswordResponseDto { Message = genericMessage };
+
+                var foundUser = await _userRepository.GetUserDetailsByUserUidAsync(credentials.UserUid);
+                if (foundUser is null || foundUser.Status != "Disabled")
+                    return new ForgotPasswordResponseDto { Message = genericMessage };
+
+                await _userService.MarkPendingReactivationAsync(foundUser.UserUid);
+
+                await _userRequestRepository.CreateAsync(new UserRequestModel
+                {
+                    UserUid = foundUser.UserUid,
+                    RequestType = "AccountReactivation",
+                    Status = "Pending",
+                    UserComment = request.Reason,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _notificationService.NotifyAllAdminsAsync(
+                    $"{foundUser.UserName} has requested account reactivation.", "/admin/users");
+
+                return new ForgotPasswordResponseDto { Message = genericMessage };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AuthService: RequestAccountReactivationAsync - {Message}", ex.Message);
+                throw new Exception($"AuthService: RequestAccountReactivationAsync - {ex.Message}", ex);
             }
         }
 

@@ -6,7 +6,10 @@ import {
   CreateBookingRequest, CreateBookingResponse,
   UpdateBookingRequest, UpdateBookingResponse,
   EditBookingRequest,
-  BookDose2Request, BookDose2Response
+  BookDose2Request, BookDose2Response,
+  RebookDose1Request,
+  BookingAuditLogEntry,
+  NextAvailableSlot
 } from '../models/booking.model';
 
 const BASE = '/api/vaxtrack/v1/booking';
@@ -31,12 +34,32 @@ export class BookingService {
     return this.http.put<Booking>(`${BASE}/editBooking`, request);
   }
 
-  approveBooking(bookingId: string): Observable<Booking> {
-    return this.http.put<Booking>(`${BASE}/approveBookings/${bookingId}`, {});
+  rebookDose1(request: RebookDose1Request): Observable<Booking> {
+    return this.http.put<Booking>(`${BASE}/rebookDose1`, request);
   }
 
-  cancelBooking(bookingId: string): Observable<Booking> {
-    return this.http.put<Booking>(`${BASE}/cancelBookings/${bookingId}`, {});
+  approveBooking(bookingId: string, comment?: string): Observable<Booking> {
+    return this.http.put<Booking>(`${BASE}/approveBookings/${bookingId}`, { comment });
+  }
+
+  cancelBooking(bookingId: string, comment?: string): Observable<Booking> {
+    return this.http.put<Booking>(`${BASE}/cancelBookings/${bookingId}`, { comment });
+  }
+
+  rejectBooking(bookingId: string, comment?: string): Observable<Booking> {
+    return this.http.put<Booking>(`${BASE}/rejectBookings/${bookingId}`, { comment });
+  }
+
+  getBookingAuditTrail(bookingId: string): Observable<BookingAuditLogEntry[]> {
+    return this.http.get<BookingAuditLogEntry[]>(`${BASE}/getBookingAuditTrail/${bookingId}`);
+  }
+
+  getActionableBookings(): Observable<Booking[]> {
+    return this.http.get<Booking[]>(`${BASE}/getActionableBookings`);
+  }
+
+  getNextAvailableSlot(hospitalId: string, date: string): Observable<NextAvailableSlot> {
+    return this.http.get<NextAvailableSlot>(`${BASE}/getNextAvailableSlot/${hospitalId}/${date}`);
   }
 
   getBookingById(bookingId: string): Observable<Booking> {

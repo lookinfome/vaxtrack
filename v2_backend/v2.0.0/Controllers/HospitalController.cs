@@ -136,18 +136,162 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        // ── lifecycle ─────────────────────────────────────────────────────────────
+
+        // Platform admin only — reason required
         [Authorize(Roles = "admin")]
-        [HttpDelete("{hospitalId}")]
-        public async Task<ActionResult> DeleteHospitalAsync(string hospitalId)
+        [HttpPut("{hospitalId}")]
+        public async Task<ActionResult<HospitalProfileDataDto>> DisableHospitalAsync(string hospitalId, HospitalActionCommentRequestDto body)
         {
             try
             {
-                await _hospitalService.DeleteHospitalAsync(hospitalId);
-                return NoContent();
+                var updated = await _hospitalService.DisableHospitalAsync(hospitalId, CallerUserUid, CallerIsAdmin, body?.Comment ?? "");
+                return Ok(updated);
             }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "HospitalController: DeleteHospitalAsync - {Message}", ex.Message);
+                _logger.LogError(ex, "HospitalController: DisableHospitalAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Hospital's own hospital-admin only
+        [HttpPut("{hospitalId}")]
+        public async Task<ActionResult<HospitalProfileDataDto>> RequestReactivationAsync(string hospitalId, HospitalActionCommentRequestDto? body)
+        {
+            try
+            {
+                var updated = await _hospitalService.RequestReactivationAsync(hospitalId, CallerUserUid, CallerIsAdmin, body?.Comment);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: RequestReactivationAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPut("{hospitalId}")]
+        public async Task<ActionResult<HospitalProfileDataDto>> ApproveReactivationAsync(string hospitalId, HospitalActionCommentRequestDto? body)
+        {
+            try
+            {
+                var updated = await _hospitalService.ApproveReactivationAsync(hospitalId, CallerUserUid, CallerIsAdmin, body?.Comment);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: ApproveReactivationAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPut("{hospitalId}")]
+        public async Task<ActionResult<HospitalProfileDataDto>> RejectReactivationAsync(string hospitalId, HospitalActionCommentRequestDto? body)
+        {
+            try
+            {
+                var updated = await _hospitalService.RejectReactivationAsync(hospitalId, CallerUserUid, CallerIsAdmin, body?.Comment);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: RejectReactivationAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Platform admin only — reason required
+        [Authorize(Roles = "admin")]
+        [HttpPut("{hospitalId}")]
+        public async Task<ActionResult<HospitalProfileDataDto>> RequestUnregisterAsync(string hospitalId, HospitalActionCommentRequestDto body)
+        {
+            try
+            {
+                var updated = await _hospitalService.RequestUnregisterAsync(hospitalId, CallerUserUid, CallerIsAdmin, body?.Comment ?? "");
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: RequestUnregisterAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [Authorize(Roles = "admin")]
+        [HttpPut("{hospitalId}")]
+        public async Task<ActionResult<HospitalProfileDataDto>> WithdrawUnregisterRequestAsync(string hospitalId)
+        {
+            try
+            {
+                var updated = await _hospitalService.WithdrawUnregisterRequestAsync(hospitalId, CallerUserUid, CallerIsAdmin);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: WithdrawUnregisterRequestAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Hospital's own hospital-admin only
+        [HttpPut("{hospitalId}")]
+        public async Task<ActionResult<HospitalProfileDataDto>> DeclineUnregisterRequestAsync(string hospitalId, HospitalActionCommentRequestDto? body)
+        {
+            try
+            {
+                var updated = await _hospitalService.DeclineUnregisterRequestAsync(hospitalId, CallerUserUid, CallerIsAdmin, body?.Comment);
+                return Ok(updated);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: DeclineUnregisterRequestAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Hospital's own hospital-admin re-authenticates with their password to confirm
+        // (or the platform admin themselves, if no hospital-admin is assigned)
+        [HttpPut("{hospitalId}")]
+        public async Task<ActionResult> AuthorizeUnregisterAsync(string hospitalId, AuthorizeUnregisterRequestDto body)
+        {
+            try
+            {
+                await _hospitalService.AuthorizeUnregisterAsync(hospitalId, CallerUserUid, CallerIsAdmin, body.Password, body.Comment);
+                return NoContent();
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: AuthorizeUnregisterAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [HttpGet("{hospitalId}")]
+        public async Task<ActionResult<List<HospitalAuditLogDto>>> GetHospitalAuditTrailAsync(string hospitalId)
+        {
+            try
+            {
+                var entries = await _hospitalService.GetHospitalAuditTrailAsync(hospitalId, CallerUserUid, CallerIsAdmin);
+                return Ok(entries);
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalController: GetHospitalAuditTrailAsync - {Message}", ex.Message);
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }

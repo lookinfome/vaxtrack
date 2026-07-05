@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
 using Vaxtrack.Dtos.AuthDtos;
+using Vaxtrack.Exceptions;
 using Vaxtrack.Interfaces;
 
 namespace Vaxtrack.Controllers
@@ -27,6 +28,10 @@ namespace Vaxtrack.Controllers
             {
                 var loginResponse = await _authService.LoginAsync(loginRequestDto);
                 return Ok(loginResponse);
+            }
+            catch (AccountDisabledException ex)
+            {
+                return StatusCode(403, new { code = "ACCOUNT_DISABLED", message = ex.Message, reason = ex.Reason });
             }
             catch (Exception ex)
             {
@@ -88,6 +93,24 @@ namespace Vaxtrack.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "AuthController: ResetForgottenPasswordAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Public path back for a disabled account — login itself is fully blocked, so this is
+        // the only way to reach a platform admin. Caller is NOT logged in.
+        [AllowAnonymous]
+        [HttpPost]
+        public async Task<ActionResult<ForgotPasswordResponseDto>> RequestAccountReactivationAsync(RequestAccountReactivationRequestDto requestDto)
+        {
+            try
+            {
+                var response = await _authService.RequestAccountReactivationAsync(requestDto);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AuthController: RequestAccountReactivationAsync - {Message}", ex.Message);
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }

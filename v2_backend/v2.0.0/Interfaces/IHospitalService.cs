@@ -17,6 +17,31 @@ namespace Vaxtrack.Interfaces
 
         Task<HospitalProfileDataDto> GetHospitalByIdAsync(string hospitalId);
         Task<List<HospitalProfileDataDto>> GetAllHospitalsAsync();
-        Task DeleteHospitalAsync(string hospitalId);
+
+        // ── lifecycle ────────────────────────────────────────────────────────────
+        // Active -> Disabled: platform admin only, reason required.
+        Task<HospitalProfileDataDto> DisableHospitalAsync(string hospitalId, string callerUserUid, bool callerIsAdmin, string comment);
+
+        // Disabled -> PendingReactivation: the hospital's own hospital-admin only.
+        Task<HospitalProfileDataDto> RequestReactivationAsync(string hospitalId, string callerUserUid, bool callerIsAdmin, string? comment);
+
+        // PendingReactivation -> Active / Disabled: platform admin only.
+        Task<HospitalProfileDataDto> ApproveReactivationAsync(string hospitalId, string callerUserUid, bool callerIsAdmin, string? comment);
+        Task<HospitalProfileDataDto> RejectReactivationAsync(string hospitalId, string callerUserUid, bool callerIsAdmin, string? comment);
+
+        // Disabled -> PendingUnregistration: platform admin only, reason required.
+        Task<HospitalProfileDataDto> RequestUnregisterAsync(string hospitalId, string callerUserUid, bool callerIsAdmin, string comment);
+
+        // PendingUnregistration -> Disabled: platform admin withdraws its own request,
+        // or the hospital-admin declines it — either way nothing is deleted.
+        Task<HospitalProfileDataDto> WithdrawUnregisterRequestAsync(string hospitalId, string callerUserUid, bool callerIsAdmin);
+        Task<HospitalProfileDataDto> DeclineUnregisterRequestAsync(string hospitalId, string callerUserUid, bool callerIsAdmin, string? comment);
+
+        // PendingUnregistration -> Unregistered (soft-deleted): the hospital's own hospital-admin
+        // re-authenticates with their password to confirm. If no hospital-admin is assigned to this
+        // hospital, the requesting platform admin may authorize it themselves (no second party exists).
+        Task AuthorizeUnregisterAsync(string hospitalId, string callerUserUid, bool callerIsAdmin, string password, string? comment);
+
+        Task<List<HospitalAuditLogDto>> GetHospitalAuditTrailAsync(string hospitalId, string callerUserUid, bool callerIsAdmin);
     }
 }

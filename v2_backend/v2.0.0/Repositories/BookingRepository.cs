@@ -182,5 +182,38 @@ namespace Vaxtrack.Repositories
                 throw new Exception($"BookingRepository: IsBookingExistsAsync - {ex.Message}", ex);
             }
         }
+
+        public async Task<DateTime?> GetLatestSlotEndTimeForHospitalAndDateAsync(string hospitalId, DateTime date)
+        {
+            ArgumentNullException.ThrowIfNull(hospitalId);
+
+            try
+            {
+                var dayStart = date.Date;
+                var dayEnd = dayStart.AddDays(1);
+
+                var dose1Max = await _dbContext.Bookings
+                    .Where(b => !b.IsDeleted && b.Dose1HospitalUid == hospitalId && !b.IsD1RequestCanceled
+                             && b.Dose1RequestedDateTime >= dayStart && b.Dose1RequestedDateTime < dayEnd)
+                    .Select(b => (DateTime?)b.Dose1RequestedDateTime)
+                    .MaxAsync();
+
+                var dose2Max = await _dbContext.Bookings
+                    .Where(b => !b.IsDeleted && b.Dose2HospitalUid == hospitalId && !b.IsD2RequestCanceled
+                             && b.Dose2RequestedDateTime != null
+                             && b.Dose2RequestedDateTime >= dayStart && b.Dose2RequestedDateTime < dayEnd)
+                    .Select(b => b.Dose2RequestedDateTime)
+                    .MaxAsync();
+
+                if (dose1Max == null) return dose2Max;
+                if (dose2Max == null) return dose1Max;
+                return dose1Max > dose2Max ? dose1Max : dose2Max;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingRepository: GetLatestSlotEndTimeForHospitalAndDateAsync - {Message}", ex.Message);
+                throw new Exception($"BookingRepository: GetLatestSlotEndTimeForHospitalAndDateAsync - {ex.Message}", ex);
+            }
+        }
     }
 }

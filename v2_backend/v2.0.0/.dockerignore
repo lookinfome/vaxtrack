@@ -1,0 +1,6 @@
+bin/
+obj/
+Logs/
+wwwroot/uploads/*
+!wwwroot/uploads/.gitkeep
+!wwwroot/uploads/profile-pictures/.gitkeep

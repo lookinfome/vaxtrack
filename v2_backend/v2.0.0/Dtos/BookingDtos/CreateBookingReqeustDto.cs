@@ -12,9 +12,6 @@ namespace Vaxtrack.Dtos.BookingDtos
         [Required(ErrorMessage = "dose 1 requested date is required")]
         public DateTime Dose1RequestedDateTime {get; set;}
 
-        [Required(ErrorMessage = "dose 1 slot number is required")]
-        public int Dose1SlotNumber {get; set;}
-
         [Required(ErrorMessage = "dose 1 hospital id is required")]
         public string Dose1HospitalUid {get; set;} = "";
     }

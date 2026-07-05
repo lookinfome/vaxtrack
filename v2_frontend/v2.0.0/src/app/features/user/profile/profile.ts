@@ -1,29 +1,21 @@
-import { Component, inject, signal, OnInit, computed } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
 import { UserService } from '../../../core/services/user.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { BookingService } from '../../../core/services/booking.service';
-import { HospitalService } from '../../../core/services/hospital.service';
 import { User, UpdateUserRequest } from '../../../core/models/user.model';
-import { Booking } from '../../../core/models/booking.model';
-import { Hospital } from '../../../core/models/hospital.model';
 import { FooterComponent } from '../../../shared/components/footer/footer';
 
 @Component({
   selector: 'app-profile',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, FooterComponent],
+  imports: [ReactiveFormsModule, DatePipe, FooterComponent],
   templateUrl: './profile.html',
   styleUrl: './profile.css'
 })
 export class Profile implements OnInit {
-  private userService     = inject(UserService);
-  readonly authService    = inject(AuthService);
-  private bookingService  = inject(BookingService);
-  private hospitalService = inject(HospitalService);
-  private router          = inject(Router);
-  private fb              = inject(FormBuilder);
+  private userService  = inject(UserService);
+  readonly authService = inject(AuthService);
+  private fb           = inject(FormBuilder);
 
   user        = signal<User | null>(null);
   loading     = signal(true);
@@ -33,15 +25,23 @@ export class Profile implements OnInit {
   saveError   = signal('');
   saveSuccess = signal('');
 
-  booking   = signal<Booking | null>(null);
-  hospitals = signal<Hospital[]>([]);
+  selectedFile = signal<File | null>(null);
+  previewUrl   = signal<string | null>(null);
+  uploadError  = signal('');
+  uploading    = signal(false);
 
-  vaccinationStatus = computed<'not-activated' | 'pending' | 'partial' | 'fully'>(() => {
-    const b = this.booking();
-    if (!b || b.isD1RequestCanceled) return 'not-activated';
-    if (b.isVaccinationCompleted)    return 'fully';
-    if (b.isDose1Completed)          return 'partial';
-    return 'pending';
+  private readonly MAX_PICTURE_SIZE = 2 * 1024 * 1024;
+  private readonly ALLOWED_PICTURE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+  // Three-way badge: platform admin > hospital-admin > plain member
+  roleBadge = computed<{ label: string; dotClass: string; badgeClass: string }>(() => {
+    if (this.authService.isAdmin()) {
+      return { label: 'Administrator', dotClass: 'bg-purple-400', badgeClass: 'bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/30' };
+    }
+    if (this.authService.isHospitalAdmin()) {
+      return { label: 'Hospital Admin', dotClass: 'bg-blue-400', badgeClass: 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/30' };
+    }
+    return { label: 'Member', dotClass: 'bg-teal-400', badgeClass: 'bg-teal-500/20 text-teal-300 ring-1 ring-teal-500/30' };
   });
 
   editForm = this.fb.group({
@@ -70,32 +70,6 @@ export class Profile implements OnInit {
         console.error('[Profile] getUserById failed:', err);
       }
     });
-
-    if (!this.authService.isAdmin()) {
-      const userUid = this.authService.currentUser()?.userUid ?? '';
-      this.bookingService.getBookingsByUserId(userUid).subscribe({
-        next:  (b)  => this.booking.set(b),
-        error: ()   => this.booking.set(null)
-      });
-
-      this.hospitalService.getAllHospitals().subscribe({
-        next:  (list) => this.hospitals.set(list),
-        error: ()     => {}
-      });
-    }
-  }
-
-  hospitalName(uid: string): string {
-    return this.hospitals().find(h => h.hospitalId === uid)?.hospitalName ?? '—';
-  }
-
-  slotTimeDisplay(n: number): string {
-    const mins = 9 * 60 + ((n - 1) % 32) * 15;
-    const h    = Math.floor(mins / 60);
-    const m    = mins % 60;
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12  = h > 12 ? h - 12 : h === 0 ? 12 : h;
-    return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
   }
 
   private populateForm(user: User): void {
@@ -111,20 +85,49 @@ export class Profile implements OnInit {
     });
   }
 
-  logout(): void {
-    this.authService.logout().subscribe({
-      next:  () => this.router.navigate(['/auth/login']),
-      error: () => {
-        this.authService.clearSession();
-        this.router.navigate(['/auth/login']);
-      }
-    });
-  }
-
   toggleEdit(): void {
     this.editMode.set(!this.editMode());
     this.saveError.set('');
     this.saveSuccess.set('');
+    this.uploadError.set('');
+    this.selectedFile.set(null);
+    this.previewUrl.set(null);
+  }
+
+  onFileSelected(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    this.uploadError.set('');
+    if (!file) return;
+
+    if (!this.ALLOWED_PICTURE_TYPES.includes(file.type) || file.size > this.MAX_PICTURE_SIZE) {
+      this.uploadError.set('Please upload a valid image file (JPG, PNG, or WebP) under 2MB.');
+      return;
+    }
+
+    this.selectedFile.set(file);
+    this.previewUrl.set(URL.createObjectURL(file));
+  }
+
+  uploadProfilePicture(): void {
+    const file = this.selectedFile();
+    const userId = this.authService.currentUser()?.userId;
+    if (!file || !userId) return;
+
+    this.uploading.set(true);
+    this.uploadError.set('');
+
+    this.userService.uploadProfilePicture(userId, file).subscribe({
+      next: () => {
+        this.uploading.set(false);
+        this.selectedFile.set(null);
+        this.previewUrl.set(null);
+        this.ngOnInit();
+      },
+      error: (err) => {
+        this.uploading.set(false);
+        this.uploadError.set(err.error?.message ?? 'Upload failed. Please try again.');
+      }
+    });
   }
 
   onSave(): void {

@@ -1,0 +1,269 @@
+<div class="min-h-screen bg-slate-50">
+
+  <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 relative overflow-hidden">
+    <div class="absolute -top-16 -right-16 w-64 h-64 bg-teal-500/15 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-16 -left-16 w-64 h-64 bg-slate-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="max-w-3xl mx-auto px-6 py-8 relative z-10">
+      <div class="flex items-center gap-2.5 mb-1">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M12 12a4 4 0 100-8 4 4 0 000 8z" />
+          </svg>
+        </div>
+        <h1 class="text-xl font-bold text-white">Support</h1>
+      </div>
+      <p class="text-sm text-slate-400 pl-11">Manage your account, or review pending requests.</p>
+    </div>
+  </div>
+
+  <div class="max-w-3xl mx-auto px-6 py-6 space-y-5">
+
+    @if (error()) {
+      <div class="px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{{ error() }}</div>
+    }
+
+    <!-- ── Menu ──────────────────────────────────────────────────────────── -->
+    @if (activeView() === 'menu') {
+
+      <button (click)="showDeleteReasonForm()"
+        class="w-full text-left flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-sm border border-slate-100
+               hover:border-red-200 hover:shadow-md transition-all duration-200 group">
+        <div>
+          <p class="text-sm font-semibold text-slate-800">Delete My Account</p>
+          <p class="text-xs text-slate-400 mt-0.5">Permanently remove your account and booking history</p>
+        </div>
+        <svg class="w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      <button (click)="showHospitalAdminApplicationForm()"
+        class="w-full text-left flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-sm border border-slate-100
+               hover:border-teal-200 hover:shadow-md transition-all duration-200 group">
+        <div>
+          <p class="text-sm font-semibold text-slate-800">Apply to be a Hospital-Admin</p>
+          <p class="text-xs text-slate-400 mt-0.5">Request scoped admin rights for a specific vaccination centre</p>
+        </div>
+        <svg class="w-4 h-4 text-slate-400 group-hover:text-teal-500 transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      @if (authService.isAdmin()) {
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div class="px-5 py-3.5 border-b border-slate-100">
+            <h2 class="text-xs font-semibold text-slate-700 uppercase tracking-wider">Pending Requests</h2>
+          </div>
+          <div class="p-5 space-y-3">
+            @if (pendingRequestsLoading()) {
+              <p class="text-xs text-slate-400">Loading...</p>
+            }
+            @if (!pendingRequestsLoading() && pendingRequests().length === 0) {
+              <p class="text-xs text-slate-400">No pending requests.</p>
+            }
+            @for (r of pendingRequests(); track r.id) {
+              <div class="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 rounded-xl border border-slate-100">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-slate-800">
+                    {{ r.requestType === 'HospitalAdminApplication' ? 'Hospital-Admin Application' : 'Account Reactivation' }}
+                  </p>
+                  <p class="text-xs text-slate-400 mt-0.5 truncate">
+                    User: {{ r.userUid }}
+                    @if (r.targetHospitalId) { · Hospital: {{ hospitalName(r.targetHospitalId) }} }
+                  </p>
+                  @if (r.userComment) {
+                    <p class="text-xs text-slate-500 mt-1 italic">"{{ r.userComment }}"</p>
+                  }
+                </div>
+                <div class="flex gap-2 shrink-0">
+                  @if (r.requestType === 'HospitalAdminApplication') {
+                    <a routerLink="/hospital"
+                      class="px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-all">
+                      View Hospital
+                    </a>
+                    <button (click)="requestPendingAction(r, true)"
+                      class="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 rounded-lg transition-all">
+                      Approve
+                    </button>
+                    <button (click)="requestPendingAction(r, false)"
+                      class="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 rounded-lg transition-all">
+                      Reject
+                    </button>
+                  } @else {
+                    <a routerLink="/admin/users"
+                      class="px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-all">
+                      Review in Users Management
+                    </a>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    }
+
+    <!-- ── Delete: reason selection ─────────────────────────────────────── -->
+    @if (activeView() === 'delete-reason') {
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="h-1 bg-gradient-to-r from-red-400 to-red-600"></div>
+        <div class="p-6">
+          <h2 class="text-base font-bold text-slate-900 mb-1">Why are you leaving?</h2>
+          <p class="text-xs text-slate-400 mb-5">Select all that apply.</p>
+
+          <div class="space-y-2.5 mb-5">
+            @for (reason of deleteReasons; track reason) {
+              <label class="flex items-center gap-2.5 px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer">
+                <input type="checkbox" [checked]="selectedReasons().has(reason)" (change)="toggleReason(reason)"
+                  class="w-4 h-4 accent-teal-600" />
+                <span class="text-sm text-slate-700">{{ reason }}</span>
+              </label>
+            }
+            <label class="flex items-center gap-2.5 px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer">
+              <input type="checkbox" [checked]="otherReasonChecked()" (change)="toggleOtherReason()"
+                class="w-4 h-4 accent-teal-600" />
+              <span class="text-sm text-slate-700">Other</span>
+            </label>
+            @if (otherReasonChecked()) {
+              <textarea [value]="otherReasonText()" (input)="otherReasonText.set($any($event.target).value)"
+                rows="3" placeholder="Tell us more..."
+                class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                       focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all"></textarea>
+            }
+          </div>
+
+          <div class="flex gap-3">
+            <button (click)="backToMenu()"
+              class="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
+              Cancel
+            </button>
+            <button (click)="proceedToPasswordConfirm()"
+              class="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-xl shadow-md transition-all">
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Delete: password confirmation ───────────────────────────────── -->
+    @if (activeView() === 'delete-confirm') {
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="h-1 bg-gradient-to-r from-red-400 to-red-600"></div>
+        <div class="p-6">
+          <h2 class="text-base font-bold text-slate-900 mb-1">Confirm account deletion</h2>
+          <p class="text-xs text-slate-500 mb-5">This action cannot be undone. Enter your password to confirm.</p>
+
+          <div class="mb-5">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Password</label>
+            <input type="password" [value]="deletePassword()" (input)="deletePassword.set($any($event.target).value)"
+              placeholder="Enter your password"
+              class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                     focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent focus:bg-white transition-all" />
+          </div>
+
+          <div class="flex gap-3">
+            <button (click)="backToMenu()"
+              class="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
+              Cancel
+            </button>
+            <button (click)="confirmDelete()" [disabled]="loading()"
+              class="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700
+                     disabled:opacity-50 rounded-xl shadow-md transition-all">
+              @if (loading()) { Deleting... } @else { Permanently Delete Account }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Hospital-admin application ──────────────────────────────────── -->
+    @if (activeView() === 'hospital-admin-application') {
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="h-1 bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-500"></div>
+        <div class="p-6">
+
+          @if (!applicationSubmitted()) {
+            <h2 class="text-base font-bold text-slate-900 mb-1">Apply to be a Hospital-Admin</h2>
+            <p class="text-xs text-slate-400 mb-5">A platform admin will review your application.</p>
+
+            <form [formGroup]="applicationForm" (ngSubmit)="submitApplication()" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Hospital</label>
+                <select formControlName="hospitalId"
+                  class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                         focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all">
+                  <option value="">Select a hospital</option>
+                  @for (h of hospitals(); track h.hospitalId) {
+                    <option [value]="h.hospitalId">{{ h.hospitalName }}</option>
+                  }
+                </select>
+                @if (applicationForm.get('hospitalId')!.invalid && applicationForm.get('hospitalId')!.touched) {
+                  <p class="mt-1.5 text-xs text-red-500">Please select a hospital</p>
+                }
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Your User ID (for confirmation)</label>
+                <input type="text" [value]="authService.currentUser()?.userId" readonly
+                  class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-100 text-slate-500" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Comment (optional)</label>
+                <textarea formControlName="comment" rows="3" placeholder="Why should you be the hospital-admin for this centre?"
+                  class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+                         focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all"></textarea>
+              </div>
+
+              <div class="flex gap-3 pt-2">
+                <button type="button" (click)="backToMenu()"
+                  class="flex-1 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button type="submit" [disabled]="loading()"
+                  class="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700
+                         disabled:opacity-50 rounded-xl shadow-md transition-all">
+                  @if (loading()) { Submitting... } @else { Submit Application }
+                </button>
+              </div>
+            </form>
+          }
+
+          @if (applicationSubmitted()) {
+            <div class="px-4 py-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 flex items-start gap-2.5 mb-4">
+              <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Your application has been submitted for review.
+            </div>
+            <button (click)="backToMenu()"
+              class="w-full py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
+              Back
+            </button>
+          }
+
+        </div>
+      </div>
+    }
+
+  </div>
+
+  @if (pendingAction()) {
+    <app-confirm-action-modal
+      [title]="pendingModalTitle"
+      [message]="pendingModalMessage"
+      confirmLabel="Confirm"
+      cancelLabel="Back"
+      [showCommentBox]="true"
+      [commentRequired]="!pendingAction()!.approve"
+      [accentColor]="pendingAction()!.approve ? 'teal' : 'red'"
+      (confirmed)="confirmPendingAction($event)"
+      (dismissed)="dismissPendingAction()"
+    />
+  }
+
+  <app-footer />
+
+</div>

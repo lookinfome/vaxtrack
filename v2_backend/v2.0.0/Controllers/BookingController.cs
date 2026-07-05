@@ -36,7 +36,7 @@ namespace Vaxtrack.Controllers
             try
             {
                 var createdBookingResponse = await _bookingService.CreateBookingAsync(createBookingRequestDto, CallerUserUid);
-                return CreatedAtAction("GetBookingById", new { bookingId = createdBookingResponse.BookingId }, createdBookingResponse);
+                return CreatedAtAction("GetBookingByBookingId", new { bookingId = createdBookingResponse.BookingId }, createdBookingResponse);
             }
             catch (UnauthorizedAccessException)
             {
@@ -104,13 +104,33 @@ namespace Vaxtrack.Controllers
             }
         }
 
-        // Platform admin OR hospital-admin scoped to the booking's hospital
-        [HttpPut("{bookingId}")]
-        public async Task<ActionResult<BookingProfileDataDto>> ApproveBookingsAsync(string bookingId)
+        // Rebooks a cancelled/rejected Dose 1 — owner only
+        [HttpPut]
+        public async Task<ActionResult<BookingProfileDataDto>> RebookDose1Async(RebookDose1RequestDto rebookDose1RequestDto)
         {
             try
             {
-                var approvedBooking = await _bookingService.ApproveBookingsAsync(bookingId, CallerUserUid, CallerIsAdmin);
+                var updatedBooking = await _bookingService.RebookDose1Async(rebookDose1RequestDto, CallerUserUid);
+                return Ok(updatedBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingController: RebookDose1Async - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Platform admin OR hospital-admin scoped to the booking's hospital
+        [HttpPut("{bookingId}")]
+        public async Task<ActionResult<BookingProfileDataDto>> ApproveBookingsAsync(string bookingId, BookingActionCommentRequestDto? body)
+        {
+            try
+            {
+                var approvedBooking = await _bookingService.ApproveBookingsAsync(bookingId, CallerUserUid, CallerIsAdmin, body?.Comment);
                 return Ok(approvedBooking);
             }
             catch (UnauthorizedAccessException)
@@ -125,11 +145,11 @@ namespace Vaxtrack.Controllers
         }
 
         [HttpPut("{bookingId}")]
-        public async Task<ActionResult<BookingProfileDataDto>> CancelBookingsAsync(string bookingId)
+        public async Task<ActionResult<BookingProfileDataDto>> CancelBookingsAsync(string bookingId, BookingActionCommentRequestDto? body)
         {
             try
             {
-                var canceledBooking = await _bookingService.CancelBookingsAsync(bookingId, CallerUserUid, CallerIsAdmin);
+                var canceledBooking = await _bookingService.CancelBookingsAsync(bookingId, CallerUserUid, CallerIsAdmin, body?.Comment);
                 return Ok(canceledBooking);
             }
             catch (UnauthorizedAccessException)
@@ -139,6 +159,63 @@ namespace Vaxtrack.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "BookingController: CancelBookingsAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Admin/hospital-admin only — distinct from Cancel (see RejectBookingAsync semantics in BookingService)
+        [HttpPut("{bookingId}")]
+        public async Task<ActionResult<BookingProfileDataDto>> RejectBookingsAsync(string bookingId, BookingActionCommentRequestDto? body)
+        {
+            try
+            {
+                var rejectedBooking = await _bookingService.RejectBookingAsync(bookingId, CallerUserUid, CallerIsAdmin, body?.Comment);
+                return Ok(rejectedBooking);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingController: RejectBookingsAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        [HttpGet("{bookingId}")]
+        public async Task<ActionResult<List<BookingAuditLogDto>>> GetBookingAuditTrailAsync(string bookingId)
+        {
+            try
+            {
+                var entries = await _bookingService.GetBookingAuditTrailAsync(bookingId, CallerUserUid, CallerIsAdmin);
+                return Ok(entries);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingController: GetBookingAuditTrailAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Bookings still needing action — scoped internally to the caller's hospital-admin
+        // assignments (or all bookings for a platform admin); a caller with no such assignment
+        // simply gets an empty list back, which is a safe no-op, not a security gap.
+        [HttpGet]
+        public async Task<ActionResult<List<BookingProfileDataDto>>> GetActionableBookingsAsync()
+        {
+            try
+            {
+                var bookings = await _bookingService.GetActionableBookingsAsync(CallerUserUid, CallerIsAdmin);
+                return Ok(bookings);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingController: GetActionableBookingsAsync - {Message}", ex.Message);
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }
@@ -208,6 +285,23 @@ namespace Vaxtrack.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "BookingController: GetAllBookingsAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
+        // Read-only preview of the slot that would be assigned for this hospital+date — used by the
+        // frontend to show the info card before the user actually submits the booking.
+        [HttpGet("{hospitalId}/{date}")]
+        public async Task<ActionResult<NextAvailableSlotResponseDto>> GetNextAvailableSlotAsync(string hospitalId, DateTime date)
+        {
+            try
+            {
+                var nextSlot = await _bookingService.GetNextAvailableSlotAsync(hospitalId, date);
+                return Ok(nextSlot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingController: GetNextAvailableSlotAsync - {Message}", ex.Message);
                 return StatusCode(500, "An unexpected error occurred.");
             }
         }

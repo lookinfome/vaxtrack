@@ -3,6 +3,7 @@ namespace Vaxtrack.Dtos.HospitalDtos
     public class HospitalProfileDataDto
     {
         public string HospitalId { get; set; } = "";
+        public string HospitalUid { get; set; } = "";
         public string HospitalName { get; set; } = "";
         public string HospitalAddress { get; set; } = "";
         public string HospitalPinCode { get; set; } = "";
@@ -10,6 +11,8 @@ namespace Vaxtrack.Dtos.HospitalDtos
         public string HospitalEmail { get; set; } = "";
         public int TotalSlots { get; set; }
         public int SlotsAvailable { get; set; }
+        public string Status { get; set; } = "Active";
+        public string? StatusComment { get; set; }
         public DateTime RegisteredDate { get; set; }
         public DateTime UpdatedDate { get; set; }
     }

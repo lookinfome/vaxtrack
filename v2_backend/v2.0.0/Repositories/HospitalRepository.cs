@@ -98,6 +98,21 @@ namespace Vaxtrack.Repositories
             }
         }
 
+        public async Task<HospitalModel?> GetHospitalByIdIncludingDeletedAsync(string hospitalId)
+        {
+            ArgumentNullException.ThrowIfNull(hospitalId);
+
+            try
+            {
+                return await _dbContext.Hospitals.Where(h => h.HospitalId == hospitalId).FirstOrDefaultAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "HospitalRepository: GetHospitalByIdIncludingDeletedAsync - {Message}", ex.Message);
+                throw new Exception($"HospitalRepository: GetHospitalByIdIncludingDeletedAsync - {ex.Message}", ex);
+            }
+        }
+
         public async Task<List<HospitalModel>?> GetAllHospitalDetailsAsync()
         {
             try

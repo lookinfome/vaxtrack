@@ -20,6 +20,11 @@ namespace Vaxtrack.Models
         public int TotalSlots { get; set; }
         public int SlotsAvailable { get; set; }
 
+        // ── lifecycle ────────────────────────────────────────────────────────────
+        // Active | Disabled | PendingReactivation | PendingUnregistration | Unregistered
+        public string Status { get; set; } = "Active";
+        public string? StatusComment { get; set; }     // reason given for the most recent status change
+
         // ── record state ─────────────────────────────────────────────────────────
         public bool IsDeleted { get; set; } = false;
         public DateTime RegisteredDate { get; set; }

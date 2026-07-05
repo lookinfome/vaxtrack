@@ -3,11 +3,13 @@
 
     <!-- Links row -->
     <nav class="flex items-center gap-5 text-xs flex-wrap justify-center">
-      <a routerLink="/hospital"
-        class="text-slate-400 hover:text-teal-400 transition-colors duration-200 font-medium">
-        Hospitals
-      </a>
-      <span class="text-slate-600 select-none">·</span>
+      @if (authService.isAdmin() || authService.isHospitalAdmin()) {
+        <a routerLink="/hospital"
+          class="text-slate-400 hover:text-teal-400 transition-colors duration-200 font-medium">
+          Vaccination Centres
+        </a>
+        <span class="text-slate-600 select-none">·</span>
+      }
       <a href="https://www.linkedin.com/in/vivek-kumar-a71741218/" target="_blank" rel="noopener noreferrer"
         class="inline-flex items-center gap-1.5 text-slate-400 hover:text-teal-400 transition-colors duration-200 font-medium">
         <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -16,7 +18,7 @@
         Contact Us
       </a>
       <span class="text-slate-600 select-none">·</span>
-      <a href="mailto:vivekkr8235@gmail.com"
+      <a routerLink="/support" target="_blank"
         class="text-slate-400 hover:text-teal-400 transition-colors duration-200 font-medium">
         Support
       </a>

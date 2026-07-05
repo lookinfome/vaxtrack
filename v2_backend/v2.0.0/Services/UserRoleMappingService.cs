@@ -9,15 +9,24 @@ namespace Vaxtrack.Services
     {
         private readonly IUserRoleMappingRepository _roleMappingRepository;
         private readonly IUserRepository _userRepository;
+        private readonly IHospitalRepository _hospitalRepository;
+        private readonly IUserRequestRepository _userRequestRepository;
+        private readonly INotificationService _notificationService;
         private readonly ILogger<UserRoleMappingService> _logger;
 
         public UserRoleMappingService(
             IUserRoleMappingRepository roleMappingRepository,
             IUserRepository userRepository,
+            IHospitalRepository hospitalRepository,
+            IUserRequestRepository userRequestRepository,
+            INotificationService notificationService,
             ILogger<UserRoleMappingService> logger)
         {
             _roleMappingRepository = roleMappingRepository;
             _userRepository = userRepository;
+            _hospitalRepository = hospitalRepository;
+            _userRequestRepository = userRequestRepository;
+            _notificationService = notificationService;
             _logger = logger;
         }
 
@@ -60,6 +69,7 @@ namespace Vaxtrack.Services
                     existingMapping.IsActive = true;
                     existingMapping.UpdatedAt = DateTime.UtcNow;
                     var reactivated = await _roleMappingRepository.UpdateRoleMappingAsync(existingMapping);
+                    await _notificationService.NotifyAsync(request.UserUid, $"You have been assigned the role '{request.RoleTag}'.");
                     return MapToAssignRoleResponseDto(reactivated);
                 }
 
@@ -75,6 +85,7 @@ namespace Vaxtrack.Services
                 };
 
                 var createdMapping = await _roleMappingRepository.AddRoleMappingAsync(newMapping);
+                await _notificationService.NotifyAsync(request.UserUid, $"You have been assigned the role '{request.RoleTag}'.");
                 return MapToAssignRoleResponseDto(createdMapping);
             }
             catch (Exception ex)
@@ -111,6 +122,7 @@ namespace Vaxtrack.Services
                 foundMapping.IsActive = false;
                 foundMapping.UpdatedAt = DateTime.UtcNow;
                 await _roleMappingRepository.UpdateRoleMappingAsync(foundMapping);
+                await _notificationService.NotifyAsync(foundMapping.UserUid, $"Your role '{foundMapping.RoleTag}' has been removed.");
             }
             catch (Exception ex)
             {
@@ -208,6 +220,156 @@ namespace Vaxtrack.Services
                 _logger.LogError(ex, "UserRoleMappingService: IsUserInRoleAsync - {Message}", ex.Message);
                 throw new Exception($"UserRoleMappingService: IsUserInRoleAsync - {ex.Message}", ex);
             }
+        }
+
+        // ── hospital-admin application ────────────────────────────────────────────
+
+        public async Task<UserRequestDto> SubmitHospitalAdminApplicationAsync(string callerUserUid, string hospitalId, string? comment)
+        {
+            ArgumentNullException.ThrowIfNull(callerUserUid);
+            ArgumentNullException.ThrowIfNull(hospitalId);
+
+            try
+            {
+                var foundHospital = await _hospitalRepository.GetHospitalByIdAsync(hospitalId);
+                if (foundHospital is null)
+                    throw new Exception($"UserRoleMappingService: SubmitHospitalAdminApplicationAsync - hospital {hospitalId} not found");
+
+                var request = await _userRequestRepository.CreateAsync(new UserRequestModel
+                {
+                    UserUid = callerUserUid,
+                    RequestType = "HospitalAdminApplication",
+                    TargetHospitalId = hospitalId,
+                    Status = "Pending",
+                    UserComment = comment,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _notificationService.NotifyAllAdminsAsync(
+                    $"A user has applied to become hospital-admin for {foundHospital.HospitalName}.", "/hospital");
+
+                return MapToUserRequestDto(request);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserRoleMappingService: SubmitHospitalAdminApplicationAsync - {Message}", ex.Message);
+                throw new Exception($"UserRoleMappingService: SubmitHospitalAdminApplicationAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<UserRequestDto> ApproveHospitalAdminApplicationAsync(int requestId, string callerUserUid, bool callerIsAdmin, string? comment)
+        {
+            try
+            {
+                if (!callerIsAdmin)
+                    throw new UnauthorizedAccessException("UserRoleMappingService: ApproveHospitalAdminApplicationAsync - only a platform admin may approve this request");
+
+                var request = await ValidatePendingHospitalAdminApplicationAsync(requestId);
+
+                var foundHospital = await _hospitalRepository.GetHospitalByIdAsync(request.TargetHospitalId!);
+                if (foundHospital is null)
+                    throw new Exception($"UserRoleMappingService: ApproveHospitalAdminApplicationAsync - hospital {request.TargetHospitalId} not found");
+
+                // Reuse the same assign logic used by the drag-and-drop UI — one code path, no duplication
+                await AssignRoleAsync(new AssignRoleRequestDto
+                {
+                    UserUid = request.UserUid,
+                    RoleTag = "hospital-admin",
+                    ContextId = foundHospital.HospitalUid
+                });
+
+                request.Status = "Approved";
+                request.AdminComment = comment;
+                request.ResolvedAt = DateTime.UtcNow;
+                request.ResolvedByUserUid = callerUserUid;
+                var updated = await _userRequestRepository.UpdateAsync(request);
+
+                await _notificationService.NotifyAsync(request.UserUid, $"Your application to become hospital-admin for {foundHospital.HospitalName} was approved.", "/user");
+
+                return MapToUserRequestDto(updated);
+            }
+            catch (UnauthorizedAccessException) { throw; }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserRoleMappingService: ApproveHospitalAdminApplicationAsync - {Message}", ex.Message);
+                throw new Exception($"UserRoleMappingService: ApproveHospitalAdminApplicationAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<UserRequestDto> RejectHospitalAdminApplicationAsync(int requestId, string callerUserUid, bool callerIsAdmin, string? comment)
+        {
+            try
+            {
+                if (!callerIsAdmin)
+                    throw new UnauthorizedAccessException("UserRoleMappingService: RejectHospitalAdminApplicationAsync - only a platform admin may reject this request");
+
+                var request = await ValidatePendingHospitalAdminApplicationAsync(requestId);
+
+                var foundHospital = await _hospitalRepository.GetHospitalByIdAsync(request.TargetHospitalId!);
+
+                request.Status = "Rejected";
+                request.AdminComment = comment;
+                request.ResolvedAt = DateTime.UtcNow;
+                request.ResolvedByUserUid = callerUserUid;
+                var updated = await _userRequestRepository.UpdateAsync(request);
+
+                await _notificationService.NotifyAsync(request.UserUid,
+                    $"Your application to become hospital-admin for {foundHospital?.HospitalName ?? request.TargetHospitalId} was rejected.{(string.IsNullOrWhiteSpace(comment) ? "" : $" Reason: {comment}")}");
+
+                return MapToUserRequestDto(updated);
+            }
+            catch (UnauthorizedAccessException) { throw; }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserRoleMappingService: RejectHospitalAdminApplicationAsync - {Message}", ex.Message);
+                throw new Exception($"UserRoleMappingService: RejectHospitalAdminApplicationAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<List<UserRequestDto>> GetPendingRequestsAsync()
+        {
+            try
+            {
+                var pending = await _userRequestRepository.GetAllPendingAsync();
+                return pending.Select(MapToUserRequestDto).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserRoleMappingService: GetPendingRequestsAsync - {Message}", ex.Message);
+                throw new Exception($"UserRoleMappingService: GetPendingRequestsAsync - {ex.Message}", ex);
+            }
+        }
+
+        private async Task<UserRequestModel> ValidatePendingHospitalAdminApplicationAsync(int requestId)
+        {
+            var request = await _userRequestRepository.GetByIdAsync(requestId);
+            if (request is null)
+                throw new Exception($"UserRoleMappingService: request {requestId} not found");
+
+            if (request.RequestType != "HospitalAdminApplication")
+                throw new Exception($"UserRoleMappingService: request {requestId} is not a hospital-admin application");
+
+            if (request.Status != "Pending")
+                throw new Exception($"UserRoleMappingService: request {requestId} has already been resolved (status: {request.Status})");
+
+            return request;
+        }
+
+        private static UserRequestDto MapToUserRequestDto(UserRequestModel request)
+        {
+            return new UserRequestDto
+            {
+                Id = request.Id,
+                UserUid = request.UserUid,
+                RequestType = request.RequestType,
+                TargetHospitalId = request.TargetHospitalId,
+                Status = request.Status,
+                UserComment = request.UserComment,
+                AdminComment = request.AdminComment,
+                CreatedAt = request.CreatedAt,
+                ResolvedAt = request.ResolvedAt,
+                ResolvedByUserUid = request.ResolvedByUserUid
+            };
         }
 
         // ── private mapping helpers ───────────────────────────────────────────────
