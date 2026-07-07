@@ -1,292 +1,233 @@
 -- =============================================================================
--- VaxTrack v2 — Seed Data
+-- VaxTrack v2 — Fresh Start Seed Data
 -- =============================================================================
--- Passwords
---   Platform admin  : Admin@1234
---   All other users : Test@1234
+-- Run "Truncate Commands.sql" first to wipe every table, then run this file.
 --
--- ID convention     : {Name}-17-{xx}  (matches UtilityService.GenerateUniqueIdAsync)
--- Booking states covered:
---   BK-17-a1  Vivek   — Dose1 pending
---   BK-17-b2  Priya   — Dose1 completed, Dose2 pending
---   BK-17-c3  Rahul   — Both doses completed (fully vaccinated)
---   BK-17-d4  Anita   — Dose1 canceled
---   BK-17-e5  Kiran   — Dose1 completed, Dose2 canceled
---   BK-17-f6  Deepa   — Dose1 pending (different hospital than Vivek)
+-- What this creates:
+--   1 Platform Admin account       (full platform privileges)
+--   10 Hospital Admin accounts     (one per seeded hospital, scoped privileges)
+--   1 Demo/Normal user account     (plain end-user, for smoke-testing only)
+--   10 fresh Hospital records
+--
+-- No bookings are seeded on purpose — this DB is meant to be shared so real
+-- users can register their own accounts and create their own bookings.
+--
+-- All system-created accounts use the @vaxtrack.system email domain, round
+-- placeholder phone numbers, and "Other"/system-labelled names so they read
+-- as system-provisioned rather than accounts a random end user signed up
+-- with.
+--
+-- Passwords (BCrypt.Net-Next, work factor 11):
+--   Platform admin   : Admin@12345
+--   Hospital admins  : HospitalAdmin@12345   (same password for all 10)
+--   Demo user        : Demo@12345
+--
+-- ID convention: {Name}-{xx}-{xx}  (matches UtilityService.GenerateUniqueIdAsync)
 -- =============================================================================
 
 
 -- =============================================================================
--- 1. USERS
--- =============================================================================
-INSERT INTO [vaxtrack_sqlserver].[dbo].[Users]
-    (UserId, UserUid, UserName, UserBirthdate, UserAge, UserGender, UserPhone, UserAddress, UserPinCode, ProfilePicturePath, UserRole, IsDeleted, CreatedAt, UpdatedAt, DeletedAt)
-VALUES
-    -- Platform Admin
-    ('Admin-17-aa',
-     '11111111-0000-0000-0000-000000000001',
-     'Super Admin',
-     '1985-04-10', 41, 'Male', '9000000001',
-     '1 Admin Lane, Mumbai', '400001', '', 1, 0,
-     '2026-01-01 08:00:00', NULL, NULL),
-
-    -- Regular Users
-    ('VivekK-17-b1',
-     '22222222-0000-0000-0000-000000000002',
-     'Vivek Kumar',
-     '1995-06-15', 30, 'Male', '9111111111',
-     '12 Park Street, Mumbai', '400002', '', 0, 0,
-     '2026-01-05 09:00:00', NULL, NULL),
-
-    ('PriyaS-17-c2',
-     '33333333-0000-0000-0000-000000000003',
-     'Priya Sharma',
-     '1992-03-22', 34, 'Female', '9222222222',
-     '45 Green Avenue, Delhi', '110001', '', 0, 0,
-     '2026-01-08 10:00:00', NULL, NULL),
-
-    ('RahulM-17-d3',
-     '44444444-0000-0000-0000-000000000004',
-     'Rahul Mehta',
-     '1990-11-30', 35, 'Male', '9333333333',
-     '78 MG Road, Bangalore', '560001', '', 0, 0,
-     '2026-01-10 11:00:00', NULL, NULL),
-
-    ('AnitaS-17-e4',
-     '55555555-0000-0000-0000-000000000005',
-     'Anita Singh',
-     '1998-07-05', 27, 'Female', '9444444444',
-     '22 Anna Salai, Chennai', '600001', '', 0, 0,
-     '2026-01-12 12:00:00', NULL, NULL),
-
-    ('KiranP-17-f5',
-     '66666666-0000-0000-0000-000000000006',
-     'Kiran Patel',
-     '1993-09-18', 32, 'Male', '9555555555',
-     '9 FC Road, Pune', '411001', '', 0, 0,
-     '2026-01-15 13:00:00', NULL, NULL),
-
-    ('DeepaR-17-a6',
-     '77777777-0000-0000-0000-000000000007',
-     'Deepa Reddy',
-     '1997-02-28', 29, 'Female', '9666666666',
-     '33 Banjara Hills, Hyderabad', '500001', '', 0, 0,
-     '2026-01-18 14:00:00', NULL, NULL);
-
-
--- =============================================================================
--- 2. HOSPITALS
--- Slot accounting (only pending bookings occupy slots):
---   CityCare-17-a1   50 total — Vivek Dose1 pending (-1)       → 49 available
---   MediLife-17-b2   40 total — Priya Dose1 done (-1 used, not restored),
---                               Priya Dose2 pending (-1)        → 38 available
---   ApexHealth-17-c3 30 total — Rahul both done (no pending)   → 30 available
---   SunriseMed-17-d4 35 total — Deepa Dose1 pending (-1)       → 34 available
---   GlobalCure-17-e5 45 total — no current pending             → 45 available
+-- 1. HOSPITALS (10 fresh records)
 -- =============================================================================
 INSERT INTO [vaxtrack_sqlserver].[dbo].[Hospitals]
-    (HospitalId, HospitalUid, HospitalName, HospitalAddress, HospitalPinCode, HospitalPhoneNumber, HospitalEmail, TotalSlots, SlotsAvailable, IsDeleted, RegisteredDate, UpdatedDate, RemovedDate)
+    (HospitalId, HospitalUid, HospitalName, HospitalAddress, HospitalPinCode, HospitalPhoneNumber, HospitalEmail, TotalSlots, SlotsAvailable, Status, StatusComment, IsDeleted, RegisteredDate, UpdatedDate, RemovedDate)
 VALUES
-    ('CityCare-17-a1',
-     'aaaaaaaa-0000-0000-0000-000000000001',
-     'CityCare Hospital',
-     'Andheri West, Mumbai', '400053',
+    ('CityCare-17-c4', '2ffe79cd-7044-4c1b-ae94-eb53a724850f',
+     'CityCare Hospital', 'Andheri West, Mumbai', '400053',
      '02244001100', 'contact@citycare.in',
-     50, 49, 0,
-     '2026-01-02 08:00:00', '2026-01-02 08:00:00', NULL),
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
 
-    ('MediLife-17-b2',
-     'bbbbbbbb-0000-0000-0000-000000000002',
-     'MediLife Medical Center',
-     'Connaught Place, Delhi', '110001',
+    ('MediLife-17-9e', '85809ac1-5dae-40c4-841b-f5de58cd7d0a',
+     'MediLife Medical Center', 'Connaught Place, Delhi', '110001',
      '01144002200', 'info@medilife.in',
-     40, 38, 0,
-     '2026-01-03 08:00:00', '2026-01-03 08:00:00', NULL),
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
 
-    ('ApexHealth-17-c3',
-     'cccccccc-0000-0000-0000-000000000003',
-     'Apex Health Clinic',
-     'Koramangala, Bangalore', '560034',
+    ('ApexHealth-17-fe', 'c4694b71-e4bb-4b67-bb6b-a3eb3ecbcbf3',
+     'Apex Health Clinic', 'Koramangala, Bangalore', '560034',
      '08044003300', 'hello@apexhealth.in',
-     30, 30, 0,
-     '2026-01-04 08:00:00', '2026-01-04 08:00:00', NULL),
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
 
-    ('SunriseMed-17-d4',
-     'dddddddd-0000-0000-0000-000000000004',
-     'Sunrise Medical Center',
-     'T Nagar, Chennai', '600017',
+    ('SunriseMed-17-7a', '8d267cd4-d71a-4f9f-9c61-b3e2e2a07194',
+     'Sunrise Medical Center', 'T Nagar, Chennai', '600017',
      '04444004400', 'care@sunrisemed.in',
-     35, 34, 0,
-     '2026-01-05 08:00:00', '2026-01-05 08:00:00', NULL),
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
 
-    ('GlobalCure-17-e5',
-     'eeeeeeee-0000-0000-0000-000000000005',
-     'GlobalCure Hospital',
-     'Jubilee Hills, Hyderabad', '500033',
+    ('GlobalCure-17-3f', 'd17625a9-496a-496f-a4dc-87b10ebbfd06',
+     'GlobalCure Hospital', 'Jubilee Hills, Hyderabad', '500033',
      '04044005500', 'support@globalcure.in',
-     45, 45, 0,
-     '2026-01-06 08:00:00', '2026-01-06 08:00:00', NULL);
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
+
+    ('TrustCare-17-64', '705d8829-5c14-45fe-b173-f134bbc0ac5b',
+     'TrustCare Hospital', 'Kothrud, Pune', '411038',
+     '02044006600', 'contact@trustcare.in',
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
+
+    ('LifeLine-17-25', 'bab3a894-321a-4344-8b27-cb4f1bb096ad',
+     'LifeLine Medical Institute', 'Salt Lake, Kolkata', '700064',
+     '03344007700', 'info@lifeline.in',
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
+
+    ('WellnessPlus-17-68', '4e641a5f-6006-4936-92b4-41f4aa6e1062',
+     'WellnessPlus Hospital', 'Navrangpura, Ahmedabad', '380009',
+     '07944008800', 'hello@wellnessplus.in',
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
+
+    ('CarePoint-17-23', 'e3237a3e-02ed-493b-a865-42ceaba4e1d4',
+     'CarePoint Hospital', 'Malviya Nagar, Jaipur', '302017',
+     '01414009900', 'care@carepoint.in',
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL),
+
+    ('UnityHealth-17-25', '55c852f7-63b7-4049-b633-7826f66bb4ba',
+     'UnityHealth Hospital', 'Gomti Nagar, Lucknow', '226010',
+     '05224001010', 'support@unityhealth.in',
+     50, 50, 'Active', NULL, 0, '2026-07-08 08:00:00', '2026-07-08 08:00:00', NULL);
+
+
+-- =============================================================================
+-- 2. USERS
+--    - 1 Platform Admin   (UserRole = 1)
+--    - 10 Hospital Admins (UserRole = 0, privilege comes from UserRoleMappings)
+--    - 1 Demo/Normal user (UserRole = 0, no role mapping)
+-- =============================================================================
+INSERT INTO [vaxtrack_sqlserver].[dbo].[Users]
+    (UserId, UserUid, UserName, UserBirthdate, UserAge, UserGender, UserPhone, UserAddress, UserPinCode, ProfilePicturePath, UserRole, Status, StatusComment, IsDeleted, CreatedAt, UpdatedAt, DeletedAt)
+VALUES
+    -- Platform Admin
+    ('SysAdmin-17-93', 'e0eb4ac9-5338-420b-a464-ba345178117b',
+     'VaxTrack System Admin', '1985-01-01', 41, 'Other', '9000000000',
+     'VaxTrack Head Office', '000001', '', 1, 'Active', NULL, 0,
+     '2026-07-08 08:00:00', NULL, NULL),
+
+    -- Hospital Admins (one per hospital)
+    ('CityCareAdmin-17-1a', '8e497b3b-1d19-40a6-bc8f-e9c14d09c20c',
+     'CityCare Hospital Admin', '1990-01-01', 36, 'Other', '9000000001',
+     'Andheri West, Mumbai', '400053', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:05:00', NULL, NULL),
+
+    ('MediLifeAdmin-17-59', 'e09f89b3-16a0-499f-b589-0a969022561f',
+     'MediLife Medical Center Admin', '1990-01-01', 36, 'Other', '9000000002',
+     'Connaught Place, Delhi', '110001', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:06:00', NULL, NULL),
+
+    ('ApexHealthAdmin-17-9f', '9b38e0c6-9085-464b-b7b7-52afc8ba2574',
+     'Apex Health Clinic Admin', '1990-01-01', 36, 'Other', '9000000003',
+     'Koramangala, Bangalore', '560034', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:07:00', NULL, NULL),
+
+    ('SunriseMedAdmin-17-6a', '2c46f045-3e90-4c26-84ac-90f0d3b2c48c',
+     'Sunrise Medical Center Admin', '1990-01-01', 36, 'Other', '9000000004',
+     'T Nagar, Chennai', '600017', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:08:00', NULL, NULL),
+
+    ('GlobalCureAdmin-17-32', 'f4a62d9b-a115-4402-a184-a1c26e89c387',
+     'GlobalCure Hospital Admin', '1990-01-01', 36, 'Other', '9000000005',
+     'Jubilee Hills, Hyderabad', '500033', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:09:00', NULL, NULL),
+
+    ('TrustCareAdmin-17-6d', 'a1c82027-8e72-4b61-b589-03e081dad6ba',
+     'TrustCare Hospital Admin', '1990-01-01', 36, 'Other', '9000000006',
+     'Kothrud, Pune', '411038', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:10:00', NULL, NULL),
+
+    ('LifeLineAdmin-17-ca', 'a2814cd7-1373-4f4d-98e9-73f2e6e37128',
+     'LifeLine Medical Institute Admin', '1990-01-01', 36, 'Other', '9000000007',
+     'Salt Lake, Kolkata', '700064', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:11:00', NULL, NULL),
+
+    ('WellnessPlusAdmin-17-73', '2ae10cd8-7b59-4e64-81a9-c1dc2e016434',
+     'WellnessPlus Hospital Admin', '1990-01-01', 36, 'Other', '9000000008',
+     'Navrangpura, Ahmedabad', '380009', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:12:00', NULL, NULL),
+
+    ('CarePointAdmin-17-0d', 'a8c9203b-a42e-4241-bbeb-404474b66e34',
+     'CarePoint Hospital Admin', '1990-01-01', 36, 'Other', '9000000009',
+     'Malviya Nagar, Jaipur', '302017', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:13:00', NULL, NULL),
+
+    ('UnityHealthAdmin-17-31', '52ecf278-e3df-4400-bdbf-0647e9af50c0',
+     'UnityHealth Hospital Admin', '1990-01-01', 36, 'Other', '9000000010',
+     'Gomti Nagar, Lucknow', '226010', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:14:00', NULL, NULL),
+
+    -- Demo / Normal user (plain end-user, no elevated privileges, for smoke-testing only)
+    ('DemoUser-17-f7', '61ddeb5c-9070-4358-b11e-d5668be8e2bc',
+     'VaxTrack Demo User', '1995-01-01', 31, 'Other', '9000009999',
+     'Demo Address, Sample City', '000000', '', 0, 'Active', NULL, 0,
+     '2026-07-08 08:15:00', NULL, NULL);
 
 
 -- =============================================================================
 -- 3. USER CREDENTIALS
--- Passwords hashed with BCrypt.Net-Next, work factor 11
---   Admin@1234  →  $2a$11$zmyt9RtdCVKbMtj99XgDNeAu6tEUY2.hfepcTvdC/rYW7eHFr0Meq
---   Test@1234   →  $2a$11$VfBywofr9hZJFOku51W.CeMOVPz8NoT/L5e33L.D.P9GvGAPzgI7y  (Vivek)
---               →  $2a$11$waashP/JoOJR.SpgKon.Y.Z4Y97MHxBGDoa2qc7PSBMSmB3OABCqS  (Priya)
---               →  $2a$11$egy4UtyoaGVQKqVjX/qDu.WbZMp42d2z5s.j/iqp6L3dZOEDPBeKi  (Rahul)
---               →  $2a$11$Ef7.OsA984014co48.7JEu/LUJOud7mmmBjpbpuEygW6dNeoopW/y  (Anita)
---               →  $2a$11$0EXIUss8vBSt5YoW3BY1C.fJhuPiHDJ7FZckubK7nPA2zuK.TfAG2  (Kiran)
---               →  $2a$11$CZicAtw/yJxjONJaWncg9.lnGIe9OT2o/VsPEmLgCP53Lm4fWpNwm  (Deepa)
 -- =============================================================================
 INSERT INTO [vaxtrack_sqlserver].[dbo].[UserCredentials]
     (UserUid, Email, PasswordHash, IsDeleted, DeletedAt, CreatedAt, UpdatedAt)
 VALUES
-    ('11111111-0000-0000-0000-000000000001',
-     'admin@vaxtrack.in',
-     '$2a$11$zmyt9RtdCVKbMtj99XgDNeAu6tEUY2.hfepcTvdC/rYW7eHFr0Meq',
-     0, NULL, '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+    -- Platform admin — Admin@12345
+    ('e0eb4ac9-5338-420b-a464-ba345178117b', 'admin@vaxtrack.system',
+     '$2a$11$nW3EpZInTBNKa0C4YIh5b.vK0CPMYo6pTklWsAMpFYzaoJLvYy7dO',
+     0, NULL, '2026-07-08 08:00:00', '2026-07-08 08:00:00'),
 
-    ('22222222-0000-0000-0000-000000000002',
-     'vivek.kumar@example.com',
-     '$2a$11$VfBywofr9hZJFOku51W.CeMOVPz8NoT/L5e33L.D.P9GvGAPzgI7y',
-     0, NULL, '2026-01-05 09:00:00', '2026-01-05 09:00:00'),
+    -- Hospital admins — HospitalAdmin@12345 (same password for all 10)
+    ('8e497b3b-1d19-40a6-bc8f-e9c14d09c20c', 'admin@citycare.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:05:00', '2026-07-08 08:05:00'),
 
-    ('33333333-0000-0000-0000-000000000003',
-     'priya.sharma@example.com',
-     '$2a$11$waashP/JoOJR.SpgKon.Y.Z4Y97MHxBGDoa2qc7PSBMSmB3OABCqS',
-     0, NULL, '2026-01-08 10:00:00', '2026-01-08 10:00:00'),
+    ('e09f89b3-16a0-499f-b589-0a969022561f', 'admin@medilife.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:06:00', '2026-07-08 08:06:00'),
 
-    ('44444444-0000-0000-0000-000000000004',
-     'rahul.mehta@example.com',
-     '$2a$11$egy4UtyoaGVQKqVjX/qDu.WbZMp42d2z5s.j/iqp6L3dZOEDPBeKi',
-     0, NULL, '2026-01-10 11:00:00', '2026-01-10 11:00:00'),
+    ('9b38e0c6-9085-464b-b7b7-52afc8ba2574', 'admin@apexhealth.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:07:00', '2026-07-08 08:07:00'),
 
-    ('55555555-0000-0000-0000-000000000005',
-     'anita.singh@example.com',
-     '$2a$11$Ef7.OsA984014co48.7JEu/LUJOud7mmmBjpbpuEygW6dNeoopW/y',
-     0, NULL, '2026-01-12 12:00:00', '2026-01-12 12:00:00'),
+    ('2c46f045-3e90-4c26-84ac-90f0d3b2c48c', 'admin@sunrisemed.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:08:00', '2026-07-08 08:08:00'),
 
-    ('66666666-0000-0000-0000-000000000006',
-     'kiran.patel@example.com',
-     '$2a$11$0EXIUss8vBSt5YoW3BY1C.fJhuPiHDJ7FZckubK7nPA2zuK.TfAG2',
-     0, NULL, '2026-01-15 13:00:00', '2026-01-15 13:00:00'),
+    ('f4a62d9b-a115-4402-a184-a1c26e89c387', 'admin@globalcure.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:09:00', '2026-07-08 08:09:00'),
 
-    ('77777777-0000-0000-0000-000000000007',
-     'deepa.reddy@example.com',
-     '$2a$11$CZicAtw/yJxjONJaWncg9.lnGIe9OT2o/VsPEmLgCP53Lm4fWpNwm',
-     0, NULL, '2026-01-18 14:00:00', '2026-01-18 14:00:00');
+    ('a1c82027-8e72-4b61-b589-03e081dad6ba', 'admin@trustcare.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:10:00', '2026-07-08 08:10:00'),
+
+    ('a2814cd7-1373-4f4d-98e9-73f2e6e37128', 'admin@lifeline.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:11:00', '2026-07-08 08:11:00'),
+
+    ('2ae10cd8-7b59-4e64-81a9-c1dc2e016434', 'admin@wellnessplus.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:12:00', '2026-07-08 08:12:00'),
+
+    ('a8c9203b-a42e-4241-bbeb-404474b66e34', 'admin@carepoint.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:13:00', '2026-07-08 08:13:00'),
+
+    ('52ecf278-e3df-4400-bdbf-0647e9af50c0', 'admin@unityhealth.vaxtrack.system',
+     '$2a$11$d3AIIcOsrExFai6EYGrnBe6hnI.EK0sWOXuozw92o0siVcB2CWG3y',
+     0, NULL, '2026-07-08 08:14:00', '2026-07-08 08:14:00'),
+
+    -- Demo user — Demo@12345
+    ('61ddeb5c-9070-4358-b11e-d5668be8e2bc', 'demo.user@vaxtrack.system',
+     '$2a$11$EtPC.yixk43w7/2v9SybJenph8RW9F4O5ki.4JiPh64.41ZRZrYKm',
+     0, NULL, '2026-07-08 08:15:00', '2026-07-08 08:15:00');
 
 
 -- =============================================================================
 -- 4. USER ROLE MAPPINGS
 -- hospital-admin assignments (ContextId = HospitalId, the readable PK)
---   Vivek  → hospital-admin at CityCare-17-a1
---   Priya  → hospital-admin at MediLife-17-b2
---   Rahul  → hospital-admin at ApexHealth-17-c3 AND SunriseMed-17-d4 (multi-scope)
 -- =============================================================================
 INSERT INTO [vaxtrack_sqlserver].[dbo].[UserRoleMappings]
     (UserUid, RoleTag, ContextId, IsActive, CreatedAt, UpdatedAt)
 VALUES
-    ('22222222-0000-0000-0000-000000000002',
-     'hospital-admin', 'CityCare-17-a1',
-     1, '2026-01-06 10:00:00', '2026-01-06 10:00:00'),
-
-    ('33333333-0000-0000-0000-000000000003',
-     'hospital-admin', 'MediLife-17-b2',
-     1, '2026-01-09 10:00:00', '2026-01-09 10:00:00'),
-
-    ('44444444-0000-0000-0000-000000000004',
-     'hospital-admin', 'ApexHealth-17-c3',
-     1, '2026-01-11 10:00:00', '2026-01-11 10:00:00'),
-
-    ('44444444-0000-0000-0000-000000000004',
-     'hospital-admin', 'SunriseMed-17-d4',
-     1, '2026-01-11 10:30:00', '2026-01-11 10:30:00'),
-
-    -- Revoked mapping example (Kiran had GlobalCure admin, was revoked)
-    ('66666666-0000-0000-0000-000000000006',
-     'hospital-admin', 'GlobalCure-17-e5',
-     0, '2026-01-16 10:00:00', '2026-02-01 09:00:00');
-
-
--- =============================================================================
--- 5. BOOKINGS
--- Note: Dose1HospitalUid / Dose2HospitalUid store the readable HospitalId
---       (used by service for slot updates and hospital-admin role checks)
--- =============================================================================
-INSERT INTO [vaxtrack_sqlserver].[dbo].[Bookings]
-    (BookingId, BookingUid, UserUid,
-     Dose1RequestedDateTime, Dose1SlotNumber, Dose1HospitalUid,
-     IsDose1Completed, Dose1CompletedDateTime, IsD1RequestCanceled,
-     Dose2RequestedDateTime, Dose2SlotNumber, Dose2HospitalUid,
-     IsDose2Completed, Dose2CompletedDateTime, IsD2RequestCanceled,
-     IsVaccinationCompleted, VaccinationCompletedDateTime,
-     IsDeleted, CreatedAt, ModifiedAt, RemovedAt)
-VALUES
-
-    -- BK-17-a1 | Vivek | Dose1 PENDING at CityCare
-    ('BK-17-a1',
-     'b0000001-0000-0000-0000-000000000001',
-     '22222222-0000-0000-0000-000000000002',
-     '2026-07-10 10:00:00', 5, 'CityCare-17-a1',
-     0, NULL, 0,
-     NULL, 0, '',
-     0, NULL, 0,
-     0, NULL,
-     0, '2026-06-20 09:00:00', '2026-06-20 09:00:00', NULL),
-
-    -- BK-17-b2 | Priya | Dose1 COMPLETED, Dose2 PENDING at MediLife
-    ('BK-17-b2',
-     'b0000002-0000-0000-0000-000000000002',
-     '33333333-0000-0000-0000-000000000003',
-     '2026-05-15 11:00:00', 12, 'MediLife-17-b2',
-     1, '2026-05-15 11:30:00', 0,
-     '2026-07-20 11:00:00', 8, 'MediLife-17-b2',
-     0, NULL, 0,
-     0, NULL,
-     0, '2026-05-10 10:00:00', '2026-05-15 11:35:00', NULL),
-
-    -- BK-17-c3 | Rahul | BOTH DOSES COMPLETED — fully vaccinated
-    ('BK-17-c3',
-     'b0000003-0000-0000-0000-000000000003',
-     '44444444-0000-0000-0000-000000000004',
-     '2026-03-01 09:00:00', 3, 'ApexHealth-17-c3',
-     1, '2026-03-01 09:45:00', 0,
-     '2026-05-01 09:00:00', 7, 'ApexHealth-17-c3',
-     1, '2026-05-01 09:50:00', 0,
-     1, '2026-05-01 09:50:00',
-     0, '2026-02-25 08:00:00', '2026-05-01 10:00:00', NULL),
-
-    -- BK-17-d4 | Anita | Dose1 CANCELED
-    ('BK-17-d4',
-     'b0000004-0000-0000-0000-000000000004',
-     '55555555-0000-0000-0000-000000000005',
-     '2026-04-10 14:00:00', 9, 'SunriseMed-17-d4',
-     0, NULL, 1,
-     NULL, 0, '',
-     0, NULL, 0,
-     0, NULL,
-     0, '2026-04-05 12:00:00', '2026-04-08 15:00:00', NULL),
-
-    -- BK-17-e5 | Kiran | Dose1 COMPLETED, Dose2 CANCELED
-    ('BK-17-e5',
-     'b0000005-0000-0000-0000-000000000005',
-     '66666666-0000-0000-0000-000000000006',
-     '2026-04-20 10:00:00', 6, 'GlobalCure-17-e5',
-     1, '2026-04-20 10:30:00', 0,
-     '2026-06-20 10:00:00', 4, 'GlobalCure-17-e5',
-     0, NULL, 1,
-     0, NULL,
-     0, '2026-04-15 09:00:00', '2026-06-18 11:00:00', NULL),
-
-    -- BK-17-f6 | Deepa | Dose1 PENDING at SunriseMed
-    ('BK-17-f6',
-     'b0000006-0000-0000-0000-000000000006',
-     '77777777-0000-0000-0000-000000000007',
-     '2026-07-05 15:00:00', 2, 'SunriseMed-17-d4',
-     0, NULL, 0,
-     NULL, 0, '',
-     0, NULL, 0,
-     0, NULL,
-     0, '2026-06-22 10:00:00', '2026-06-22 10:00:00', NULL);
+    ('8e497b3b-1d19-40a6-bc8f-e9c14d09c20c', 'hospital-admin', 'CityCare-17-c4', 1, '2026-07-08 08:05:00', '2026-07-08 08:05:00'),
+    ('e09f89b3-16a0-499f-b589-0a969022561f', 'hospital-admin', 'MediLife-17-9e', 1, '2026-07-08 08:06:00', '2026-07-08 08:06:00'),
+    ('9b38e0c6-9085-464b-b7b7-52afc8ba2574', 'hospital-admin', 'ApexHealth-17-fe', 1, '2026-07-08 08:07:00', '2026-07-08 08:07:00'),
+    ('2c46f045-3e90-4c26-84ac-90f0d3b2c48c', 'hospital-admin', 'SunriseMed-17-7a', 1, '2026-07-08 08:08:00', '2026-07-08 08:08:00'),
+    ('f4a62d9b-a115-4402-a184-a1c26e89c387', 'hospital-admin', 'GlobalCure-17-3f', 1, '2026-07-08 08:09:00', '2026-07-08 08:09:00'),
+    ('a1c82027-8e72-4b61-b589-03e081dad6ba', 'hospital-admin', 'TrustCare-17-64', 1, '2026-07-08 08:10:00', '2026-07-08 08:10:00'),
+    ('a2814cd7-1373-4f4d-98e9-73f2e6e37128', 'hospital-admin', 'LifeLine-17-25', 1, '2026-07-08 08:11:00', '2026-07-08 08:11:00'),
+    ('2ae10cd8-7b59-4e64-81a9-c1dc2e016434', 'hospital-admin', 'WellnessPlus-17-68', 1, '2026-07-08 08:12:00', '2026-07-08 08:12:00'),
+    ('a8c9203b-a42e-4241-bbeb-404474b66e34', 'hospital-admin', 'CarePoint-17-23', 1, '2026-07-08 08:13:00', '2026-07-08 08:13:00'),
+    ('52ecf278-e3df-4400-bdbf-0647e9af50c0', 'hospital-admin', 'UnityHealth-17-25', 1, '2026-07-08 08:14:00', '2026-07-08 08:14:00');
