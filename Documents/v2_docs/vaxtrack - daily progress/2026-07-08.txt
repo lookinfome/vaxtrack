@@ -1,0 +1,309 @@
+================================================================================
+VAXTRACK — DAILY PROGRESS LOG
+Date Range : 2026-06-27 to 2026-07-08 (catch-up entry — no log filed in between)
+Branch     : main
+Commits    : dfc400b, 388dfc8, ba38cd5, 6aef0de, 47831d4, 52ee099, 256772b
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 1 — Angular v2 Frontend Bootstrapped
+────────────────────────────────────────────────────────────────────────────────
+
+What was done:
+  - Scaffolded v2_frontend/v2.0.0 as an Angular 20 standalone app with TailwindCSS,
+    proxying /api to the local backend (proxy.conf.json).
+  - Core layer: auth.model / booking.model / hospital.model / user.model,
+    auth.service / booking.service / hospital.service / user.service,
+    auth.interceptor (attaches JWT to outgoing requests).
+  - Route guards: auth.guard (must be logged in), admin.guard (must be platform admin).
+  - Initial feature shells: auth (login, register, forgot-password, reset-password),
+    hospital (hospital-list), booking (my-bookings), user (profile),
+    admin (dashboard).
+  - Lazy-loaded route tree in app.routes.ts, split per feature module.
+
+Why Angular standalone (no NgModules):
+  Matches current Angular guidance and keeps each feature self-contained —
+  no shared module wiring needed as new features (admin, support, certificate
+  pages) were bolted on later in the week.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 2 — Auth UI Wired to Backend + Bug Fixes
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  Login and registration forms existed but hadn't been exercised against the
+  real API yet — first pass surfaced validation and response-shape mismatches.
+
+What was done:
+  - Fixed login.ts / login.html and register.ts / register.html to match the
+    actual LoginRequestDto / CreateUserRequestDto field names and validation
+    rules (phone = 10 digits, pin code = 6 digits, birthdate as DataType.Date).
+  - Added UserRole to auth.model so the frontend can branch on platform-admin
+    vs normal-user immediately after login without a second round trip.
+  - postcss.config.mjs → postcss.config.json (Tailwind build was not picking
+    up the .mjs config correctly).
+  - Backend: minor controller tweaks in BookingController / HospitalController /
+    UserController / UserRoleMappingController to align response shapes the
+    UI expected; Program.cs updated (CORS/pipeline tweaks for local dev).
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 3 — Booking Lifecycle Expansion
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  Only create/cancel/approve existed. Real usage needed: fixing a booking made
+  for the wrong hospital/date, rebooking after a rejection, and giving admins/
+  hospital-admins a trail of who did what to a booking.
+
+What was done:
+  New endpoints (BookingController / IBookingService / BookingService):
+    - EditBookingAsync — owner can move an unapproved dose (1 or 2) to a new
+      hospital/date. New DTO: EditBookingRequestDto (BookingId, UserUid,
+      DoseNumber [1-2], NewHospitalUid, NewRequestedDateTime).
+    - RebookDose1Async — re-creates dose 1 after it was cancelled/rejected,
+      instead of forcing a brand-new booking record. New DTO:
+      RebookDose1RequestDto (BookingId, UserUid, NewHospitalUid,
+      NewRequestedDateTime).
+    - RejectBookingsAsync — distinct from CancelBookingsAsync; admin/
+      hospital-admin rejects a pending dose (semantically different from a
+      user-initiated cancel, tracked separately in the audit trail).
+    - GetBookingAuditTrailAsync — returns List<BookingAuditLogDto> (BookingId,
+      DoseNumber, ActionType, ActorUserUid, ActorRole, Comment, CreatedAt).
+    - GetActionableBookingsAsync — bookings still needing action, scoped to
+      the caller's hospital-admin assignment(s) (or all, for platform admin).
+    - GetNextAvailableSlotAsync — read-only preview of the slot a booking
+      would get for a given hospital+date, used by the "my-bookings" UI to
+      show an info card before the user submits.
+  New model/table: BookingAuditLogModel + BookingAuditLogRepository —
+    every dose-level action (create/approve/cancel/reject/edit/rebook) now
+    writes an audit row.
+  BookingActionCommentRequestDto — shared optional-comment body for
+    Approve/Reject/Cancel so a remark can travel with the action.
+  BookingProfileDataDto extended with Dose1DisplayStatus / Dose2DisplayStatus /
+    VaccinationDisplayStatus (server-computed, so the UI stops re-deriving
+    status from raw booleans) and Dose1HospitalAdminEmails /
+    Dose2HospitalAdminEmails (comma-joined, for contact-info display).
+
+Frontend:
+  my-bookings.html/.ts grew substantially (798 lines added) to surface the
+  full dose lifecycle: edit, rebook, cancel, approve/reject (for hospital-
+  admin view), audit trail modal, next-available-slot preview card.
+  New shared component: audit-trail (renders BookingAuditLogDto[] as a
+  timeline, reused by both booking and hospital audit views).
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 4 — Hospital Lifecycle Management (Disable / Reactivate / Unregister)
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  Hospitals could only be created and have their contact details/slots
+  updated. There was no way to take a hospital offline, bring it back, or
+  permanently remove one — and the earlier "delete hospital" contract was
+  aspirational (no such endpoint ever existed in code).
+
+Design — status field + two-party confirmation for unregister:
+  HospitalModel gained Status ("Active" | "Disabled" | "PendingUnregister") and
+  StatusComment. New HospitalAuditLogModel + HospitalAuditLogRepository track
+  every lifecycle transition (ActionType, ActorUserUid, ActorRole, Comment).
+
+  New endpoints (HospitalController / IHospitalService / HospitalService):
+    - DisableHospitalAsync — platform admin only, reason required.
+    - RequestReactivationAsync — the hospital's own hospital-admin asks to be
+      re-enabled (comment optional).
+    - ApproveReactivationAsync / RejectReactivationAsync — platform admin only.
+    - RequestUnregisterAsync — platform admin only, reason required; puts the
+      hospital in PendingUnregister.
+    - WithdrawUnregisterRequestAsync — platform admin can back out.
+    - DeclineUnregisterRequestAsync — the hospital's own hospital-admin can
+      push back on a pending unregister.
+    - AuthorizeUnregisterAsync — the hospital-admin re-enters their own login
+      password (or the platform admin, if no hospital-admin is assigned) as a
+      second-party confirmation before the hospital is permanently removed.
+      New DTO: AuthorizeUnregisterRequestDto (Password, Comment).
+    - GetHospitalAuditTrailAsync — full lifecycle history for one hospital.
+  Shared DTO: HospitalActionCommentRequestDto (optional Comment) used across
+    Disable/RequestReactivation/ApproveReactivation/RejectReactivation/
+    RequestUnregister/WithdrawUnregister/DeclineUnregister.
+  HospitalProfileDataDto extended with Status, StatusComment,
+    HospitalAdminCount.
+
+Frontend:
+  New shared components: authorize-unregister-modal (password re-entry),
+  hospital-audit-trail. hospital-list.html/.ts extended (554 lines) with the
+  full status-driven action set (disable/reactivate/unregister buttons appear
+  based on current Status + caller role) and later (0708) with extra filters
+  and slot-adjustment controls.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 5 — User Lifecycle Management + Admin Promotion
+────────────────────────────────────────────────────────────────────────────────
+
+What was done:
+  New endpoints (UserController / IUserService / UserService):
+    - DisableUserAsync — platform admin only, reason required.
+    - ApproveUserReactivationAsync / RejectUserReactivationAsync — resolves a
+      pending AccountReactivation UserRequest (see Task 7).
+    - PromoteToAdminAsync / DemoteFromAdminAsync — flips UserModel.UserRole
+      between normal user and platform admin.
+    - GetUsersPagedAsync — filterable (name/phone/userId/userUid/role/
+      vaccinationStatus), sortable, paginated listing behind
+      PagedUsersResponseDto (Items, TotalCount, Page, PageSize) — backs the
+      new admin Users Management screen instead of loading GetAllUsersAsync's
+      full unpaged list.
+    - UploadProfilePictureAsync / RemoveProfilePictureAsync — multipart file
+      upload, stores ProfilePicturePath on the user (IUserRepository gained
+      the corresponding update method).
+  Shared DTO: UserActionCommentRequestDto (optional Comment) for
+    Disable/ApproveReactivation/RejectReactivation.
+  UserProfileDataDto extended with IsHospitalAdmin, VaccinationStatus, Status,
+    StatusComment.
+
+Frontend:
+  New admin screens: admin/users-management (paged/filterable table, promote/
+    demote/disable actions) and admin/bookings-management (actionable-bookings
+    view for platform admin + hospital-admin). profile.html/.ts reworked
+    (516/105 lines) to add profile-picture upload/remove and surface the new
+    status/vaccination fields.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 6 — Hospital-Admin Applications + Notifications System
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  Hospital-admin role assignment was admin-only (AssignRoleAsync) — there was
+  no self-service path for a regular user to request that scoped role, and no
+  in-app way to tell a user their request had been resolved.
+
+What was done:
+  New UserRequestModel + IUserRequestRepository — generic pending-request
+  table backing two self-service flows (see also Task 7):
+    - SubmitHospitalAdminApplicationAsync — a logged-in user applies to
+      manage a specific hospital (HospitalId + optional Comment).
+    - ApproveHospitalAdminApplicationAsync / RejectHospitalAdminApplicationAsync
+      — platform admin resolves it; approval creates the underlying
+      UserRoleMapping (hospital-admin, ContextId = HospitalId).
+    - GetPendingRequestsAsync — admin's queue of all pending UserRequests
+      (both request types).
+  New NotificationModel + INotificationRepository + NotificationController —
+    fire-and-forget notifications (NotifyAsync / NotifyAllAdminsAsync) fired
+    alongside existing audit-log calls whenever something needs the user's or
+    admins' attention (booking approved/rejected, hospital status changed,
+    application resolved, etc.). Endpoints: GetMyNotificationsAsync,
+    GetUnreadCountAsync, MarkAsReadAsync, MarkAllAsReadAsync.
+  New IEmailService + SmtpSettings — groundwork for actually emailing reset
+    tokens/notifications instead of just returning them in API responses
+    (see forgot-password flow, logged 2026-06-25).
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 7 — Account-Disabled Login Block + Public Reactivation Request
+────────────────────────────────────────────────────────────────────────────────
+
+Problem:
+  DisableUserAsync (Task 5) could flag an account, but LoginAsync never
+  checked it — a disabled user could still log in and use the app normally.
+
+What was done:
+  - New AccountDisabledException(reason) — thrown by AuthService.LoginAsync
+    only after password verification succeeds, never before, so a wrong-
+    password guess can't be used to probe whether an account is disabled.
+    AuthController catches it and returns 403 { code: "ACCOUNT_DISABLED",
+    message, reason }.
+  - New endpoint RequestAccountReactivationAsync (AllowAnonymous) — the only
+    way back for a disabled user, since login itself is now fully blocked.
+    Creates a UserRequestModel (RequestType = "AccountReactivation").
+    New DTO: RequestAccountReactivationRequestDto (Email, Reason?).
+  - Resolved via the same ApproveUserReactivationAsync/
+    RejectUserReactivationAsync endpoints added in Task 5.
+
+Frontend:
+  New public route/feature: account-reactivation (reachable without a
+  session, since a disabled account can never log in to reach it any other
+  way) — surfaces the 403/ACCOUNT_DISABLED response from login and lets the
+  user submit a reactivation reason directly.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 8 — Vaccination Certificate Download/Share + Admin Filters
+────────────────────────────────────────────────────────────────────────────────
+
+What was done:
+  - New endpoint GetCertificateAsync (BookingController, AllowAnonymous) —
+    public, unauthenticated lookup by bookingId, mirroring how a real
+    certificate's QR code works. New DTO: CertificateDto (BookingId,
+    BeneficiaryName, BeneficiaryAge, BeneficiaryGender, Dose1HospitalName,
+    Dose1CompletedDate, Dose2HospitalName, Dose2CompletedDate,
+    VaccinationCompletedDate) — deliberately excludes email/phone/address,
+    same restraint as a real printed certificate.
+  - IUserRepository gained a lookup used to resolve beneficiary name/age/
+    gender for the certificate without exposing the full UserProfileDataDto.
+  - Frontend: new certificate.service.ts (142 lines) generates a downloadable
+    certificate (client-side render) and a share link; new public route
+    features/certificate-verify lets anyone holding the link verify a
+    completed vaccination without logging in. my-bookings page gained a
+    "Download certificate" / "Share" action once VaccinationDisplayStatus
+    is "Vaccinated".
+  - Admin screens (bookings-management, users-management, hospital-list) got
+    additional filter controls (status/role/vaccination-status filters) on
+    top of the paged-listing work from Task 5.
+  - Support page updated to surface the hospital-admin application form
+    (Task 6) alongside the existing delete-my-account flow.
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 9 — Backend Docker Setup Removed
+────────────────────────────────────────────────────────────────────────────────
+
+What was done:
+  Deleted v2_backend/v2.0.0/Dockerfile, docker-compose.yml, .dockerignore.
+  Backend is now run directly via `dotnet run` from v2_backend/v2.0.0/ during
+  local development — Docker had been added in Task 1's era but added friction
+  without a corresponding benefit at this stage (no deployment target using it
+  yet, and its extra rebuild step was slowing down the local edit/test loop).
+
+
+────────────────────────────────────────────────────────────────────────────────
+TASK 10 — SQL Docs Refreshed (Fresh-Start Reseed)
+────────────────────────────────────────────────────────────────────────────────
+
+What was done:
+  - Truncate Commands.sql and Read Records.sql updated to match the schema
+    changes from Tasks 3-7 (BookingAuditLogs, HospitalAuditLogs, UserAuditLogs,
+    Notifications, UserRequests tables added; Hospitals/Users gained Status/
+    StatusComment columns).
+  - Seed Data.sql rewritten as a fresh-start seed: 1 platform admin, 10
+    hospital admins (one per hospital), 1 demo/normal user, 10 hospitals —
+    zero bookings seeded on purpose, since this DB is meant to be shared so
+    real users can register their own accounts and create their own bookings.
+    All system-created accounts use the @vaxtrack.system email domain and
+    round placeholder phone numbers so they read as system-provisioned.
+
+
+────────────────────────────────────────────────────────────────────────────────
+API CONTRACTS — CLEANED UP TO MATCH CURRENT BACKEND
+────────────────────────────────────────────────────────────────────────────────
+
+The "vaxtrack - api contracts" folder had drifted badly behind the backend
+above (e.g. a "delete hospital" contract for an endpoint that was never
+implemented; hospital/booking IDs from a seed generation that no longer
+matches the 2026-07-08 reseed in Task 10). Wiped and regenerated one
+Bruno-compatible (Open Collection format) folder per controller, with every
+current endpoint represented and request bodies built from the live DTOs and
+the current seed data:
+  auth-contracts/            (5 requests)
+  booking-contracts/         (18 requests)
+  hospital-contracts/        (15 requests)
+  notification-contracts/    (4 requests — new module, added this pass)
+  user-contracts/            (16 requests)
+  user-role-mapping-contracts/ (9 requests)
+
+
+================================================================================
+END OF LOG
+================================================================================

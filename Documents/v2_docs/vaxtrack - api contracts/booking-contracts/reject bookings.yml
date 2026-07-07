@@ -1,0 +1,21 @@
+info:
+  name: reject bookings
+  type: http
+  seq: 9
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/rejectbookings/Book_61ddeb5c-9070-4358-b11e-d5668be8e2bc-93-a1"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Slot no longer available."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

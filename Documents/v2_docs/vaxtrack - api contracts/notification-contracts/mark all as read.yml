@@ -1,11 +1,11 @@
 info:
-  name: delete hospital
+  name: mark all as read
   type: http
-  seq: 1
+  seq: 4
 
 http:
-  method: DELETE
-  url: "{{baseURL}}/api/vaxtrack/v1/hospital/deletehospital/Apollo-17-a7"
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/notification/markallasread"
   auth: inherit
 
 settings:

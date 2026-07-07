@@ -10,17 +10,16 @@ http:
     type: json
     data: |-
       {
-        "firstName": "Meera",
-        "lastName": "Singh",
-        "userBirthdate": "1993-04-18",
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "userBirthdate": "1995-05-20",
         "userGender": "Female",
-        "userPhone": "9988776655",
-        "userAddress": "15, HSR Layout, Bangalore, Karnataka",
-        "userPincode": "560102",
-        "email": "meera@test.com",
-        "password": "Vaxtrack@Test1"
+        "userPhone": "9123456789",
+        "userAddress": "MG Road, Pune",
+        "userPinCode": "411001",
+        "email": "jane.doe@example.com",
+        "password": "Password@123"
       }
-  auth: inherit
 
 settings:
   encodeUrl: true

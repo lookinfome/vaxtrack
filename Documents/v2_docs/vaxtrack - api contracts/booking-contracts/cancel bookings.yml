@@ -1,0 +1,21 @@
+info:
+  name: cancel bookings
+  type: http
+  seq: 8
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/cancelbookings/Book_61ddeb5c-9070-4358-b11e-d5668be8e2bc-93-a1"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "User requested cancellation."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

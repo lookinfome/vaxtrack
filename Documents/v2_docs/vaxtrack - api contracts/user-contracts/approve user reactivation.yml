@@ -1,0 +1,21 @@
+info:
+  name: approve user reactivation
+  type: http
+  seq: 13
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/user/approveuserreactivation/DemoUser-17-f7"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Reviewed and approved."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

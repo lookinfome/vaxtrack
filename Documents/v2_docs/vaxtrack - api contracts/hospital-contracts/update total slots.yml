@@ -1,11 +1,11 @@
 info:
   name: update total slots
   type: http
-  seq: 1
+  seq: 3
 
 http:
   method: PUT
-  url: "{{baseURL}}/api/vaxtrack/v1/hospital/updatetotalslots/CityCare-17-e5/100"
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/updatetotalslots/CityCare-17-c4/60"
   auth: inherit
 
 settings:

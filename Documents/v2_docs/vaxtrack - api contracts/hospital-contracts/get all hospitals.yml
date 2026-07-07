@@ -1,6 +1,7 @@
 info:
   name: get all hospitals
   type: http
+  seq: 6
 
 http:
   method: GET

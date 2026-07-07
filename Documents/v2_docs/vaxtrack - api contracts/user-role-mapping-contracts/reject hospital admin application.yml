@@ -1,0 +1,21 @@
+info:
+  name: reject hospital admin application
+  type: http
+  seq: 8
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/userrolemapping/rejecthospitaladminapplication/1"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Could not verify affiliation with the hospital."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

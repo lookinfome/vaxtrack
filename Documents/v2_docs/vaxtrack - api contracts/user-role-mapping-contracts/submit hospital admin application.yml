@@ -1,0 +1,22 @@
+info:
+  name: submit hospital admin application
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: "{{baseURL}}/api/vaxtrack/v1/userrolemapping/submithospitaladminapplication"
+  body:
+    type: json
+    data: |-
+      {
+        "hospitalId": "CityCare-17-c4",
+        "comment": "I would like to manage this hospital's bookings."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

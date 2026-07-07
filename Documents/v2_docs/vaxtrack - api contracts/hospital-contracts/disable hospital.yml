@@ -1,0 +1,21 @@
+info:
+  name: disable hospital
+  type: http
+  seq: 7
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/disablehospital/CityCare-17-c4"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Hospital reported non-compliance during audit."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

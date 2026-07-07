@@ -1,0 +1,15 @@
+info:
+  name: get users paged
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{baseURL}}/api/vaxtrack/v1/user/getuserspaged?name=&phone=&userId=&userUid=&role=&vaccinationStatus=&sortBy=&sortDir=&page=1&pageSize=20"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

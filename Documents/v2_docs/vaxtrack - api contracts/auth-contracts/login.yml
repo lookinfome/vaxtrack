@@ -10,8 +10,8 @@ http:
     type: json
     data: |-
       {
-        "email": "vivekkr8235@gmail.com",
-        "password": "***REMOVED-SQL-PASSWORD***"
+        "email": "admin@vaxtrack.system",
+        "password": "Admin@12345"
       }
 
 settings:

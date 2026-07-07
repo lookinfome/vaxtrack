@@ -1,0 +1,21 @@
+info:
+  name: reject reactivation
+  type: http
+  seq: 10
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/rejectreactivation/CityCare-17-c4"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Compliance issue still unresolved."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

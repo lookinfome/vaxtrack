@@ -1,0 +1,15 @@
+info:
+  name: get next available slot
+  type: http
+  seq: 16
+
+http:
+  method: GET
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/getnextavailableslot/CityCare-17-c4/2026-07-15"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

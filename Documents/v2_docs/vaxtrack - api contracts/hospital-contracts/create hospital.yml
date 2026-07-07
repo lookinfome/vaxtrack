@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "hospitalname": "Ruby Med Center"
+        "hospitalName": "Sample City Hospital"
       }
   auth: inherit
 

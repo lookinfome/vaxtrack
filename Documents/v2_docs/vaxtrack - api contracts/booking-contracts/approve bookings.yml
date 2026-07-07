@@ -1,0 +1,21 @@
+info:
+  name: approve bookings
+  type: http
+  seq: 7
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/approvebookings/Book_61ddeb5c-9070-4358-b11e-d5668be8e2bc-93-a1"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Verified in person, approving dose."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -1,0 +1,21 @@
+info:
+  name: request account reactivation
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseURL}}/api/vaxtrack/v1/auth/requestaccountreactivation"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "demo.user@vaxtrack.system",
+        "reason": "My account was disabled by mistake, please reactivate it."
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

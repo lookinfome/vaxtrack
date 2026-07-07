@@ -1,0 +1,21 @@
+info:
+  name: approve reactivation
+  type: http
+  seq: 9
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/approvereactivation/CityCare-17-c4"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Reviewed and approved."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

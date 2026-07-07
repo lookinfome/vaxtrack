@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseURL}}/api/vaxtrack/v1/userrolemapping/getuserroles/22222222-2222-2222-2222-222222222222"
+  url: "{{baseURL}}/api/vaxtrack/v1/userrolemapping/getuserroles/8e497b3b-1d19-40a6-bc8f-e9c14d09c20c"
   auth: inherit
 
 settings:

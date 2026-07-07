@@ -1,0 +1,22 @@
+info:
+  name: authorize unregister
+  type: http
+  seq: 14
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/authorizeunregister/CityCare-17-c4"
+  body:
+    type: json
+    data: |-
+      {
+        "password": "HospitalAdmin@12345",
+        "comment": "Confirming permanent closure."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

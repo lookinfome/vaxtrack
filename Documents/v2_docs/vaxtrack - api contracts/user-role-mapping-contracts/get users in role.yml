@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{baseURL}}/api/vaxtrack/v1/userrolemapping/getusersinrole/hospital-admin?contextId=CityCare-17-e5"
+  url: "{{baseURL}}/api/vaxtrack/v1/userrolemapping/getusersinrole/hospital-admin?contextId=CityCare-17-c4"
   auth: inherit
 
 settings:

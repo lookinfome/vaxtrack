@@ -10,9 +10,9 @@ http:
     type: json
     data: |-
       {
-        "userUid": "22222222-2222-2222-2222-222222222222",
+        "userUid": "8e497b3b-1d19-40a6-bc8f-e9c14d09c20c",
         "roleTag": "hospital-admin",
-        "contextId": "CityCare-17-e5"
+        "contextId": "CityCare-17-c4"
       }
   auth: inherit
 

@@ -1,0 +1,15 @@
+info:
+  name: withdraw unregister request
+  type: http
+  seq: 12
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/withdrawunregisterrequest/CityCare-17-c4"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

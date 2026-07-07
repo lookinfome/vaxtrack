@@ -1,7 +1,7 @@
 info:
   name: update email
   type: http
-  seq: 1
+  seq: 3
 
 http:
   method: PUT
@@ -10,9 +10,9 @@ http:
     type: json
     data: |-
       {
-        "userId": "Vivek-17-a1",
-        "currentPassword": "Vaxtrack@Test1",
-        "newEmail": "vivek.new@test.com"
+        "userId": "DemoUser-17-f7",
+        "newEmail": "demo.user.new@vaxtrack.system",
+        "currentPassword": "Demo@12345"
       }
   auth: inherit
 

@@ -1,11 +1,18 @@
 info:
   name: delete my account
   type: http
-  seq: 1
+  seq: 10
 
 http:
   method: DELETE
   url: "{{baseURL}}/api/vaxtrack/v1/user/deletemyaccount"
+  body:
+    type: json
+    data: |-
+      {
+        "password": "Demo@12345",
+        "reason": "No longer need the service."
+      }
   auth: inherit
 
 settings:

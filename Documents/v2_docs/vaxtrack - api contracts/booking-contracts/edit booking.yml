@@ -1,0 +1,25 @@
+info:
+  name: edit booking
+  type: http
+  seq: 5
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/booking/editbooking"
+  body:
+    type: json
+    data: |-
+      {
+        "bookingId": "Book_61ddeb5c-9070-4358-b11e-d5668be8e2bc-93-a1",
+        "userUid": "61ddeb5c-9070-4358-b11e-d5668be8e2bc",
+        "doseNumber": 1,
+        "newHospitalUid": "MediLife-17-9e",
+        "newRequestedDateTime": "2026-07-18T10:00:00"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

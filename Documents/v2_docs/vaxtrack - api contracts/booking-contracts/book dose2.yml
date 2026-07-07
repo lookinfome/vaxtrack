@@ -1,7 +1,7 @@
 info:
   name: book dose2
   type: http
-  seq: 2
+  seq: 4
 
 http:
   method: PUT
@@ -10,11 +10,10 @@ http:
     type: json
     data: |-
       {
-        "bookingId": "Book_22222222-2222-2222-2222-222222222222-17-a1",
-        "userUid": "22222222-2222-2222-2222-222222222222",
-        "dose2HospitalUid": "CityCare-17-e5",
-        "dose2SlotNumber": 8,
-        "dose2RequestedDateTime": "2026-08-10T10:00:00"
+        "bookingId": "Book_61ddeb5c-9070-4358-b11e-d5668be8e2bc-93-a1",
+        "userUid": "61ddeb5c-9070-4358-b11e-d5668be8e2bc",
+        "dose2HospitalUid": "CityCare-17-c4",
+        "dose2RequestedDateTime": "2026-08-15T10:00:00"
       }
   auth: inherit
 

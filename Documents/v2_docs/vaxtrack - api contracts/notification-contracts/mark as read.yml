@@ -1,11 +1,11 @@
 info:
-  name: cancel booking
+  name: mark as read
   type: http
-  seq: 5
+  seq: 3
 
 http:
   method: PUT
-  url: "{{baseURL}}/api/vaxtrack/v1/booking/cancelbookings/Book_22222222-2222-2222-2222-222222222222-17-a1"
+  url: "{{baseURL}}/api/vaxtrack/v1/notification/markasread/1"
   auth: inherit
 
 settings:

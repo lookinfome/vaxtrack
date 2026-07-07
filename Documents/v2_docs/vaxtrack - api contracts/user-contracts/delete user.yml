@@ -1,11 +1,11 @@
 info:
   name: delete user
   type: http
-  seq: 1
+  seq: 11
 
 http:
   method: DELETE
-  url: "{{baseURL}}/api/vaxtrack/v1/user/deleteuser/Ananya-17-d4"
+  url: "{{baseURL}}/api/vaxtrack/v1/user/deleteuser/DemoUser-17-f7"
   auth: inherit
 
 settings:

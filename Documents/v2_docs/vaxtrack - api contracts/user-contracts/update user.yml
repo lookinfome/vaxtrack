@@ -1,7 +1,7 @@
 info:
   name: update user
   type: http
-  seq: 1
+  seq: 2
 
 http:
   method: PUT
@@ -10,14 +10,14 @@ http:
     type: json
     data: |-
       {
-        "userid": "Priya-17-b2",
-        "firstname": "Priya",
-        "lastname": "Sharma",
-        "usergender": "Female",
-        "userphone": "8765432109",
-        "useraddress": "7, 3rd Cross, Koramangala 5th Block, Bangalore",
-        "userpincode": "560095",
-        "profilepicturepath": ""
+        "userId": "DemoUser-17-f7",
+        "firstName": "VaxTrack",
+        "lastName": "Demo User",
+        "userGender": "Other",
+        "userPhone": "9000009999",
+        "userAddress": "Demo Address, Sample City",
+        "userPinCode": "000000",
+        "profilePicturePath": ""
       }
   auth: inherit
 

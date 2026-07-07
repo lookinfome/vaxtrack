@@ -1,0 +1,21 @@
+info:
+  name: decline unregister request
+  type: http
+  seq: 13
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/declineunregisterrequest/CityCare-17-c4"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "We are still operational, please do not unregister."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

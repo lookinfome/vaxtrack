@@ -10,13 +10,13 @@ http:
     type: json
     data: |-
       {
-        "bookingId": "Book_22222222-2222-2222-2222-222222222222-17-a1",
-        "userUid": "22222222-2222-2222-2222-222222222222",
-        "dose1RequestedDateTime": "2026-07-12T10:00:00",
-        "dose1SlotNumber": 6,
-        "dose1HospitalUid": "CityCare-17-e5",
-        "isDose1Completed": false,
-        "dose1CompletedDateTime": null,
+        "bookingId": "Book_61ddeb5c-9070-4358-b11e-d5668be8e2bc-93-a1",
+        "userUid": "61ddeb5c-9070-4358-b11e-d5668be8e2bc",
+        "dose1RequestedDateTime": "2026-07-15T10:00:00",
+        "dose1SlotNumber": 5,
+        "dose1HospitalUid": "CityCare-17-c4",
+        "isDose1Completed": true,
+        "dose1CompletedDateTime": "2026-07-15T10:30:00",
         "isD1RequestCanceled": false,
         "dose2RequestedDateTime": null,
         "dose2SlotNumber": 0,

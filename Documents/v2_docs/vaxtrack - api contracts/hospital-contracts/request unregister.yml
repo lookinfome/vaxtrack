@@ -1,0 +1,21 @@
+info:
+  name: request unregister
+  type: http
+  seq: 11
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/hospital/requestunregister/CityCare-17-c4"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Hospital permanently closed operations."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

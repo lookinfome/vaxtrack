@@ -1,0 +1,15 @@
+info:
+  name: get unread count
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseURL}}/api/vaxtrack/v1/notification/getunreadcount"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

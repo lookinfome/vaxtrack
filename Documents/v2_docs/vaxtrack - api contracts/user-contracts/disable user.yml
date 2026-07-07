@@ -1,0 +1,21 @@
+info:
+  name: disable user
+  type: http
+  seq: 12
+
+http:
+  method: PUT
+  url: "{{baseURL}}/api/vaxtrack/v1/user/disableuser/DemoUser-17-f7"
+  body:
+    type: json
+    data: |-
+      {
+        "comment": "Reported for suspicious activity."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
