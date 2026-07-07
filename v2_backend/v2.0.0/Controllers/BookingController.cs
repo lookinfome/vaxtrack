@@ -30,6 +30,25 @@ namespace Vaxtrack.Controllers
 
         // ── endpoints ─────────────────────────────────────────────────────────────
 
+        // Public — anyone holding the bookingId/link can verify a completed vaccination,
+        // mirroring how a real certificate's QR code works. Backs both the downloadable PDF
+        // (called from the owner's own /booking page) and the public /certificate verify page.
+        [AllowAnonymous]
+        [HttpGet("{bookingId}")]
+        public async Task<ActionResult<CertificateDto>> GetCertificateAsync(string bookingId)
+        {
+            try
+            {
+                var certificate = await _bookingService.GetCertificateAsync(bookingId);
+                return Ok(certificate);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingController: GetCertificateAsync - {Message}", ex.Message);
+                return NotFound(new { message = "Certificate not found or vaccination not yet complete." });
+            }
+        }
+
         [HttpPost]
         public async Task<ActionResult<CreateBookingResponseDto>> CreateBookingAsync(CreateBookingRequestDto createBookingRequestDto)
         {

@@ -53,29 +53,74 @@
           <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Name</label>
           <input type="text" placeholder="e.g. Jane Doe"
             [value]="filterName()" (input)="onFilterNameChange($any($event.target).value)"
-            class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+            class="w-full h-11 px-4 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
                    focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
           <input type="text" placeholder="10-digit number"
             [value]="filterPhone()" (input)="onFilterPhoneChange($any($event.target).value)"
-            class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+            class="w-full h-11 px-4 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
                    focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">User ID</label>
           <input type="text" placeholder="e.g. Jane-17-ab"
             [value]="filterUserId()" (input)="onFilterUserIdChange($any($event.target).value)"
-            class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+            class="w-full h-11 px-4 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
                    focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">User UID</label>
           <input type="text" placeholder="System GUID"
             [value]="filterUserUid()" (input)="onFilterUserUidChange($any($event.target).value)"
-            class="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
+            class="w-full h-11 px-4 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900
                    focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Role</label>
+          <select
+            [value]="filterRole()" (change)="onFilterRoleChange($any($event.target).value)"
+            class="w-full h-11 px-4 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 appearance-none
+                   focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200">
+            <option value="">Any</option>
+            <option value="admin">Platform Admin</option>
+            <option value="hospitalAdmin">Hospital Admin</option>
+            <option value="member">Member</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Vaccination Status</label>
+          <select
+            [value]="filterVaccinationStatus()" (change)="onFilterVaccinationStatusChange($any($event.target).value)"
+            class="w-full h-11 px-4 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 appearance-none
+                   focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200">
+            <option value="">Any</option>
+            <option value="NotVaccinated">Not Vaccinated</option>
+            <option value="Pending">Pending</option>
+            <option value="PartiallyVaccinated">Partially Vaccinated</option>
+            <option value="Vaccinated">Fully Vaccinated</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Sort By</label>
+          <div class="flex gap-2">
+            <select
+              [value]="sortBy()" (change)="onSortByChange($any($event.target).value)"
+              class="flex-1 h-11 px-4 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-900 appearance-none
+                     focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent focus:bg-white transition-all duration-200">
+              <option value="name">Name</option>
+              <option value="registered">Registered Date</option>
+              <option value="status">Status</option>
+              <option value="vaccination">Vaccination Status</option>
+            </select>
+            <button type="button" (click)="toggleSortDir()"
+              class="w-11 h-11 shrink-0 flex items-center justify-center border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-600 hover:bg-slate-100 transition-all duration-200"
+              [attr.aria-label]="sortDir() === 'asc' ? 'Ascending' : 'Descending'">
+              @if (sortDir() === 'asc') { ↑ } @else { ↓ }
+            </button>
+          </div>
         </div>
       </div>
       @if (hasActiveFilters()) {
@@ -122,13 +167,24 @@
               class="w-full text-left bg-white rounded-2xl shadow-sm border overflow-hidden transition-all duration-200 cursor-pointer"
               [class]="selectedUser()?.userId === u.userId ? 'border-teal-400 ring-2 ring-teal-100' : 'border-slate-100 hover:border-teal-200'">
               <div class="p-4 flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-sm font-bold text-slate-800 truncate">{{ u.userName }}</p>
-                  <p class="text-xs text-slate-400 mt-0.5 truncate">{{ u.email }}</p>
+                <div class="min-w-0 flex items-center gap-2">
+                  <span
+                    class="w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] font-bold"
+                    [class]="vaccinationStatusMeta(u.vaccinationStatus).colorClass"
+                    [title]="vaccinationStatusMeta(u.vaccinationStatus).label">
+                    {{ vaccinationStatusMeta(u.vaccinationStatus).icon }}
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-sm font-bold text-slate-800 truncate">{{ u.userName }}</p>
+                    <p class="text-xs text-slate-400 mt-0.5 truncate">{{ u.email }}</p>
+                  </div>
                 </div>
                 <div class="shrink-0 flex flex-col items-end gap-1">
                   @if (u.userRole) {
                     <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Admin</span>
+                  }
+                  @if (u.isHospitalAdmin) {
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Hospital Admin</span>
                   }
                   @switch (u.status) {
                     @case ('Active') { <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Active</span> }
@@ -170,9 +226,18 @@
               <div class="p-6">
 
                 <div class="flex items-start justify-between gap-3 mb-4">
-                  <div>
-                    <h2 class="text-lg font-bold text-slate-800">{{ u.userName }}</h2>
-                    <p class="text-xs text-slate-400 font-mono mt-0.5">{{ u.userId }}</p>
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-11 h-11 rounded-xl overflow-hidden bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shrink-0">
+                      @if (u.profilePicturePath) {
+                        <img [src]="u.profilePicturePath" class="w-full h-full object-cover" alt="Profile picture" />
+                      } @else {
+                        <span class="text-lg font-bold text-white">{{ u.userName.charAt(0).toUpperCase() }}</span>
+                      }
+                    </div>
+                    <div class="min-w-0">
+                      <h2 class="text-lg font-bold text-slate-800 truncate">{{ u.userName }}</h2>
+                      <p class="text-xs text-slate-400 font-mono mt-0.5">{{ u.userId }}</p>
+                    </div>
                   </div>
                   <button (click)="closeDetail()"
                     class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all shrink-0">
@@ -231,6 +296,16 @@
                     <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Registered</dt>
                     <dd class="text-slate-700 mt-0.5">{{ u.createdAt | date: 'mediumDate' }}</dd>
                   </div>
+                  <div>
+                    <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Birthdate</dt>
+                    <dd class="text-slate-700 mt-0.5">{{ u.userBirthdate | date: 'mediumDate' }}</dd>
+                  </div>
+                  @if (u.updatedAt) {
+                    <div>
+                      <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Last Updated</dt>
+                      <dd class="text-slate-700 mt-0.5">{{ u.updatedAt | date: 'medium' }}</dd>
+                    </div>
+                  }
                   <div class="sm:col-span-2">
                     <dt class="text-xs font-medium text-slate-400 uppercase tracking-wider">Address</dt>
                     <dd class="text-slate-700 mt-0.5">{{ u.userAddress || '—' }}@if (u.userPinCode) {, {{ u.userPinCode }}}</dd>

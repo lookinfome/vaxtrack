@@ -214,11 +214,23 @@ namespace Vaxtrack.Services
             }
         }
 
-        public async Task<PagedUsersResponseDto> GetUsersPagedAsync(string? name, string? phone, string? userId, string? userUid, int page, int pageSize)
+        public async Task<PagedUsersResponseDto> GetUsersPagedAsync(string? name, string? phone, string? userId, string? userUid, string? role, string? vaccinationStatus, string? sortBy, string? sortDir, int page, int pageSize)
         {
             try
             {
                 var allUsers = await GetAllUsersAsync();
+
+                // Batch-fetch every active hospital-admin mapping once to label each user's
+                // IsHospitalAdmin flag — avoids an N+1 lookup per row in the Users Management list.
+                var hospitalAdminMappings = await _roleMappingService.GetUsersInRoleAsync("hospital-admin", "");
+                var hospitalAdminUids = hospitalAdminMappings.Select(m => m.UserUid).ToHashSet();
+                foreach (var user in allUsers)
+                    user.IsHospitalAdmin = hospitalAdminUids.Contains(user.UserUid);
+
+                // Batch-fetch vaccination status per user (derived from their booking, if any)
+                var vaccinationStatuses = await _bookingService.GetVaccinationStatusesByUserUidsAsync(allUsers.Select(u => u.UserUid).ToList());
+                foreach (var user in allUsers)
+                    user.VaccinationStatus = vaccinationStatuses.GetValueOrDefault(user.UserUid, "NotVaccinated");
 
                 IEnumerable<UserProfileDataDto> filtered = allUsers;
                 if (!string.IsNullOrWhiteSpace(name))
@@ -229,6 +241,26 @@ namespace Vaxtrack.Services
                     filtered = filtered.Where(u => u.UserId.Contains(userId, StringComparison.OrdinalIgnoreCase));
                 if (!string.IsNullOrWhiteSpace(userUid))
                     filtered = filtered.Where(u => u.UserUid.Contains(userUid, StringComparison.OrdinalIgnoreCase));
+
+                if (string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase))
+                    filtered = filtered.Where(u => u.UserRole);
+                else if (string.Equals(role, "hospitalAdmin", StringComparison.OrdinalIgnoreCase))
+                    filtered = filtered.Where(u => u.IsHospitalAdmin);
+                else if (string.Equals(role, "member", StringComparison.OrdinalIgnoreCase))
+                    filtered = filtered.Where(u => !u.UserRole && !u.IsHospitalAdmin);
+
+                if (!string.IsNullOrWhiteSpace(vaccinationStatus))
+                    filtered = filtered.Where(u => string.Equals(u.VaccinationStatus, vaccinationStatus, StringComparison.OrdinalIgnoreCase));
+
+                bool descending = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+                Func<UserProfileDataDto, object> keySelector = sortBy?.ToLowerInvariant() switch
+                {
+                    "registered"   => u => u.CreatedAt,
+                    "status"       => u => u.Status,
+                    "vaccination"  => u => u.VaccinationStatus,
+                    _              => u => u.UserName
+                };
+                filtered = descending ? filtered.OrderByDescending(keySelector) : filtered.OrderBy(keySelector);
 
                 var filteredList = filtered.ToList();
                 var effectivePage = page < 1 ? 1 : page;
@@ -462,6 +494,47 @@ namespace Vaxtrack.Services
             {
                 _logger.LogError(ex, "UserService: UploadProfilePictureAsync - {Message}", ex.Message);
                 throw new Exception($"UserService: UploadProfilePictureAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<UpdateUserResponseDto> RemoveProfilePictureAsync(string userId, string callerUserUid, bool callerIsAdmin)
+        {
+            /*
+             * Remove Profile Picture Logic:
+             * ------------------------------
+             * Deletes the stored file (if any) and clears ProfilePicturePath back to "" so the
+             * frontend falls back to its default/initials avatar — same ownership rule as upload.
+             */
+
+            ArgumentNullException.ThrowIfNull(userId);
+
+            try
+            {
+                var foundUser = await _userRepository.GetUserDetailsByUserIdAsync(userId);
+                if (foundUser is null)
+                    throw new Exception($"UserService: RemoveProfilePictureAsync - user {userId} not found");
+
+                if (!callerIsAdmin && foundUser.UserUid != callerUserUid)
+                    throw new UnauthorizedAccessException($"UserService: RemoveProfilePictureAsync - caller does not own account {userId}");
+
+                var filePath = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "profile-pictures", $"{foundUser.UserUid}.jpg");
+                if (File.Exists(filePath))
+                    File.Delete(filePath);
+
+                foundUser.ProfilePicturePath = "";
+                foundUser.UpdatedAt = DateTime.UtcNow;
+                var updatedUser = await _userRepository.UpdateUserAsync(foundUser);
+
+                return MapToUpdateUserResponseDto(updatedUser);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserService: RemoveProfilePictureAsync - {Message}", ex.Message);
+                throw new Exception($"UserService: RemoveProfilePictureAsync - {ex.Message}", ex);
             }
         }
 

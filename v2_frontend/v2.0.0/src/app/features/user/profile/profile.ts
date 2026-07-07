@@ -3,7 +3,9 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { UserService } from '../../../core/services/user.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { BookingService } from '../../../core/services/booking.service';
 import { User, UpdateUserRequest } from '../../../core/models/user.model';
+import { Booking } from '../../../core/models/booking.model';
 import { FooterComponent } from '../../../shared/components/footer/footer';
 
 @Component({
@@ -13,9 +15,10 @@ import { FooterComponent } from '../../../shared/components/footer/footer';
   styleUrl: './profile.css'
 })
 export class Profile implements OnInit {
-  private userService  = inject(UserService);
-  readonly authService = inject(AuthService);
-  private fb           = inject(FormBuilder);
+  private userService    = inject(UserService);
+  readonly authService   = inject(AuthService);
+  private bookingService = inject(BookingService);
+  private fb              = inject(FormBuilder);
 
   user        = signal<User | null>(null);
   loading     = signal(true);
@@ -29,6 +32,26 @@ export class Profile implements OnInit {
   previewUrl   = signal<string | null>(null);
   uploadError  = signal('');
   uploading    = signal(false);
+  removing     = signal(false);
+
+  booking = signal<Booking | null>(null);
+
+  vaccinationStatus = computed<{ label: string; dotClass: string; badgeClass: string } | null>(() => {
+    const b = this.booking();
+    if (!b) return null;
+    switch (b.vaccinationDisplayStatus) {
+      case 'Vaccinated':
+        return { label: 'Fully Vaccinated', dotClass: 'bg-emerald-400', badgeClass: 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30' };
+      case 'PartiallyVaccinated':
+        return { label: 'Partially Vaccinated', dotClass: 'bg-blue-400', badgeClass: 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/30' };
+      case 'Pending':
+        return { label: 'Vaccination Pending', dotClass: 'bg-amber-400', badgeClass: 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30' };
+      case 'Rejected':
+        return { label: 'Vaccination Rejected', dotClass: 'bg-red-400', badgeClass: 'bg-red-500/20 text-red-300 ring-1 ring-red-500/30' };
+      default:
+        return { label: 'Not Vaccinated', dotClass: 'bg-slate-400', badgeClass: 'bg-slate-500/20 text-slate-300 ring-1 ring-slate-500/30' };
+    }
+  });
 
   private readonly MAX_PICTURE_SIZE = 2 * 1024 * 1024;
   private readonly ALLOWED_PICTURE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -70,6 +93,18 @@ export class Profile implements OnInit {
         console.error('[Profile] getUserById failed:', err);
       }
     });
+
+    // Vaccination status pill — platform admins don't book vaccinations themselves
+    // (mirrors the "My Bookings" tab being hidden for them in the nav bar).
+    if (!this.authService.isAdmin()) {
+      const userUid = this.authService.currentUser()?.userUid;
+      if (userUid) {
+        this.bookingService.getBookingsByUserId(userUid).subscribe({
+          next: (b) => this.booking.set(b),
+          error: () => this.booking.set(null)
+        });
+      }
+    }
   }
 
   private populateForm(user: User): void {
@@ -126,6 +161,25 @@ export class Profile implements OnInit {
       error: (err) => {
         this.uploading.set(false);
         this.uploadError.set(err.error?.message ?? 'Upload failed. Please try again.');
+      }
+    });
+  }
+
+  removeProfilePicture(): void {
+    const userId = this.authService.currentUser()?.userId;
+    if (!userId) return;
+
+    this.removing.set(true);
+    this.uploadError.set('');
+
+    this.userService.removeProfilePicture(userId).subscribe({
+      next: () => {
+        this.removing.set(false);
+        this.ngOnInit();
+      },
+      error: (err) => {
+        this.removing.set(false);
+        this.uploadError.set(err.error?.message ?? 'Failed to remove picture. Please try again.');
       }
     });
   }

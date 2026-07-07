@@ -1,0 +1,124 @@
+<div class="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 px-4 py-10">
+
+  <div class="absolute -top-32 -left-32 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-teal-600/15 rounded-full blur-3xl pointer-events-none"></div>
+
+  <div class="w-full max-w-lg relative z-10">
+
+    <div class="flex items-center justify-center gap-2 mb-6">
+      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      </div>
+      <span class="text-white font-bold text-base tracking-wide">VaxTrack</span>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
+
+      @if (loading()) {
+        <div class="px-8 py-16 flex flex-col items-center text-center">
+          <div class="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <p class="text-sm text-slate-400">Verifying certificate...</p>
+        </div>
+      }
+
+      @if (!loading() && error()) {
+        <div class="h-1 bg-gradient-to-r from-red-400 to-red-600"></div>
+        <div class="px-8 py-12 flex flex-col items-center text-center">
+          <div class="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p class="text-sm font-semibold text-slate-700 mb-1">Certificate not found</p>
+          <p class="text-xs text-slate-400">{{ error() }}</p>
+        </div>
+      }
+
+      @if (!loading() && !error() && certificate(); as cert) {
+        <div class="h-1 bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-500"></div>
+
+        <div class="px-8 py-8">
+          <div class="flex items-center gap-2.5 mb-1">
+            <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <div>
+              <h1 class="text-lg font-bold text-slate-900">Certificate Verified</h1>
+              <p class="text-xs text-emerald-600 font-semibold">Fully Vaccinated</p>
+            </div>
+          </div>
+
+          <div class="mt-6 space-y-5">
+
+            <div>
+              <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Beneficiary Details</h2>
+              <dl class="grid grid-cols-2 gap-4 text-sm bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div class="col-span-2">
+                  <dt class="text-xs text-slate-400">Name</dt>
+                  <dd class="font-semibold text-slate-800 mt-0.5">{{ cert.beneficiaryName }}</dd>
+                </div>
+                <div>
+                  <dt class="text-xs text-slate-400">Age / Gender</dt>
+                  <dd class="font-semibold text-slate-800 mt-0.5">{{ cert.beneficiaryAge }} · {{ cert.beneficiaryGender || '—' }}</dd>
+                </div>
+                <div>
+                  <dt class="text-xs text-slate-400">Reference ID</dt>
+                  <dd class="font-mono text-xs text-slate-600 mt-0.5 break-all">{{ cert.bookingId }}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div>
+              <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Vaccination Details</h2>
+              <dl class="space-y-3 text-sm bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div class="flex items-center justify-between">
+                  <dt class="text-slate-500">Dose 1</dt>
+                  <dd class="font-semibold text-slate-800 text-right">
+                    {{ cert.dose1HospitalName }}<br />
+                    <span class="text-xs text-slate-400 font-normal">{{ cert.dose1CompletedDate | date: 'dd MMM yyyy' }}</span>
+                  </dd>
+                </div>
+                @if (cert.dose2HospitalName) {
+                  <div class="flex items-center justify-between pt-3 border-t border-slate-200">
+                    <dt class="text-slate-500">Dose 2</dt>
+                    <dd class="font-semibold text-slate-800 text-right">
+                      {{ cert.dose2HospitalName }}<br />
+                      <span class="text-xs text-slate-400 font-normal">{{ cert.dose2CompletedDate | date: 'dd MMM yyyy' }}</span>
+                    </dd>
+                  </div>
+                }
+                <div class="flex items-center justify-between pt-3 border-t border-slate-200">
+                  <dt class="text-slate-500">Completed On</dt>
+                  <dd class="font-semibold text-emerald-700">{{ cert.vaccinationCompletedDate | date: 'dd MMM yyyy' }}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <button (click)="download()" [disabled]="downloading()"
+              class="w-full py-3 px-4 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700
+                     disabled:opacity-50 text-white font-semibold text-sm rounded-xl shadow-lg shadow-teal-500/30
+                     transition-all duration-200 cursor-pointer active:scale-[0.98] flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H8a2 2 0 01-2-2V5a2 2 0 012-2h6l4 4v10a2 2 0 01-2 2z" />
+              </svg>
+              {{ downloading() ? 'Generating PDF...' : 'Download Certificate (PDF)' }}
+            </button>
+          </div>
+        </div>
+      }
+
+    </div>
+
+    <p class="mt-6 text-center text-sm">
+      <a routerLink="/auth/login" class="text-teal-300 font-semibold hover:text-teal-200 transition-colors">Go to VaxTrack</a>
+    </p>
+
+    <app-footer />
+
+  </div>
+</div>

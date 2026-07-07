@@ -15,6 +15,8 @@ namespace Vaxtrack.Services
         private readonly IBookingRepository _bookingRepository;
         private readonly IUtilityService _utilityService;
         private readonly IHospitalService _hospitalService;
+        private readonly IHospitalRepository _hospitalRepository;
+        private readonly IUserRepository _userRepository;
         private readonly IUserRoleMappingRepository _roleMappingRepository;
         private readonly IUserCredentialsRepository _userCredentialsRepository;
         private readonly IBookingAuditLogRepository _bookingAuditLogRepository;
@@ -25,6 +27,8 @@ namespace Vaxtrack.Services
             IBookingRepository bookingRepository,
             IUtilityService utilityService,
             IHospitalService hospitalService,
+            IHospitalRepository hospitalRepository,
+            IUserRepository userRepository,
             IUserRoleMappingRepository roleMappingRepository,
             IUserCredentialsRepository userCredentialsRepository,
             IBookingAuditLogRepository bookingAuditLogRepository,
@@ -34,11 +38,26 @@ namespace Vaxtrack.Services
             _bookingRepository = bookingRepository;
             _utilityService = utilityService;
             _hospitalService = hospitalService;
+            _hospitalRepository = hospitalRepository;
+            _userRepository = userRepository;
             _roleMappingRepository = roleMappingRepository;
             _userCredentialsRepository = userCredentialsRepository;
             _bookingAuditLogRepository = bookingAuditLogRepository;
             _notificationService = notificationService;
             _logger = logger;
+        }
+
+        // Booking.Dose1HospitalUid/Dose2HospitalUid actually store the hospital's readable
+        // HospitalId (confirmed: CreateBookingAsync/BookDose2Async resolve hospitals and adjust
+        // slots via HospitalId-keyed lookups) — a pre-existing naming inconsistency. Hospital-admin
+        // role mappings, however, are always scoped by the true HospitalUid GUID. This helper
+        // translates a booking's stored HospitalId to its real HospitalUid so authorization checks
+        // compare like with like.
+        private async Task<string> ResolveHospitalUidAsync(string hospitalId)
+        {
+            if (string.IsNullOrEmpty(hospitalId)) return "";
+            var hospital = await _hospitalRepository.GetHospitalByIdAsync(hospitalId);
+            return hospital?.HospitalUid ?? "";
         }
 
         private async Task LogAuditAsync(string bookingId, int doseNumber, string actionType, string actorUserUid, string actorRole, string? comment)
@@ -53,6 +72,15 @@ namespace Vaxtrack.Services
                 Comment = comment,
                 CreatedAt = DateTime.UtcNow
             });
+        }
+
+        // Platform-admin fallback check for Approve/Reject/Cancel scoping: a platform admin may act
+        // directly on a hospital's bookings only when that hospital currently has no hospital-admin
+        // assigned — mirrors HospitalService.AuthorizeUnregisterAsync's no-second-party fallback.
+        private async Task<bool> HasHospitalAdminAssignedAsync(string hospitalUid)
+        {
+            var assignedAdmins = await _roleMappingRepository.GetRoleMappingsByRoleTagAsync("hospital-admin", hospitalUid);
+            return assignedAdmins.Any(m => m.IsActive);
         }
 
         // Server-side per-calendar-day slot allocation: finds the latest booked time for the
@@ -456,22 +484,31 @@ namespace Vaxtrack.Services
                 if (!approvingDose1 && !approvingDose2)
                     throw new Exception($"BookingService: ApproveBookingsAsync - booking {bookingId} has no pending dose to approve");
 
-                // Hospital-admin check — scoped to the hospital handling the pending dose
-                string actorRole = "admin";
-                if (!callerIsAdmin)
+                // Hospital-admin check — scoped to the hospital handling the pending dose.
+                // Platform admin bypasses this only if the hospital currently has no hospital-admin
+                // assigned (same no-second-party fallback as HospitalService.AuthorizeUnregisterAsync);
+                // otherwise the relevant hospital's own hospital-admin must act.
+                string relevantHospitalIdForApproval = approvingDose1
+                    ? foundBooking.Dose1HospitalUid
+                    : foundBooking.Dose2HospitalUid;
+                string relevantHospitalUidForApproval = await ResolveHospitalUidAsync(relevantHospitalIdForApproval);
+
+                bool isHospitalAdminForApproval = await _roleMappingRepository.IsUserInRoleAsync(
+                    callerUserUid, "hospital-admin", relevantHospitalUidForApproval);
+
+                string actorRole;
+                if (isHospitalAdminForApproval)
                 {
-                    string relevantHospitalId = approvingDose1
-                        ? foundBooking.Dose1HospitalUid
-                        : foundBooking.Dose2HospitalUid;
-
-                    bool isHospitalAdmin = await _roleMappingRepository.IsUserInRoleAsync(
-                        callerUserUid, "hospital-admin", relevantHospitalId);
-
-                    if (!isHospitalAdmin)
-                        throw new UnauthorizedAccessException(
-                            $"BookingService: ApproveBookingsAsync - caller is not authorized to approve bookings at hospital {relevantHospitalId}");
-
                     actorRole = "hospital-admin";
+                }
+                else if (callerIsAdmin && !await HasHospitalAdminAssignedAsync(relevantHospitalUidForApproval))
+                {
+                    actorRole = "admin";
+                }
+                else
+                {
+                    throw new UnauthorizedAccessException(
+                        $"BookingService: ApproveBookingsAsync - caller is not authorized to approve bookings at hospital {relevantHospitalIdForApproval}");
                 }
 
                 var timestamp = DateTime.UtcNow;
@@ -546,16 +583,54 @@ namespace Vaxtrack.Services
                 if (foundBooking == null)
                     throw new Exception($"BookingService: CancelBookingsAsync - booking {bookingId} not found");
 
-                if (!callerIsAdmin && foundBooking.UserUid != callerUserUid)
-                    throw new UnauthorizedAccessException($"BookingService: CancelBookingsAsync - caller does not own booking {bookingId}");
-
                 if (foundBooking.IsVaccinationCompleted)
                     throw new Exception($"BookingService: CancelBookingsAsync - booking {bookingId} vaccination is already completed and cannot be canceled");
+
+                bool cancelingDose1 = !foundBooking.IsDose1Completed && !foundBooking.IsD1RequestCanceled;
+                bool cancelingDose2 = foundBooking.IsDose1Completed
+                    && !string.IsNullOrEmpty(foundBooking.Dose2HospitalUid)
+                    && !foundBooking.IsDose2Completed
+                    && !foundBooking.IsD2RequestCanceled;
+
+                if (!cancelingDose1 && !cancelingDose2)
+                    throw new Exception($"BookingService: CancelBookingsAsync - booking {bookingId} has no active dose request to cancel");
+
+                // Ownership: the booking owner may always cancel their own pending dose. Otherwise,
+                // the hospital-admin scoped to whichever hospital owns that dose may cancel it too
+                // (mirrors Approve/Reject scoping); platform admin bypasses this only when that
+                // hospital currently has no hospital-admin assigned (same fallback as Approve/Reject).
+                bool isOwner = foundBooking.UserUid == callerUserUid;
+                string actorRole = "user";
+
+                if (!isOwner)
+                {
+                    string relevantHospitalIdForCancel = cancelingDose1
+                        ? foundBooking.Dose1HospitalUid
+                        : foundBooking.Dose2HospitalUid;
+                    string relevantHospitalUidForCancel = await ResolveHospitalUidAsync(relevantHospitalIdForCancel);
+
+                    bool isHospitalAdminForCancel = await _roleMappingRepository.IsUserInRoleAsync(
+                        callerUserUid, "hospital-admin", relevantHospitalUidForCancel);
+
+                    if (isHospitalAdminForCancel)
+                    {
+                        actorRole = "hospital-admin";
+                    }
+                    else if (callerIsAdmin && !await HasHospitalAdminAssignedAsync(relevantHospitalUidForCancel))
+                    {
+                        actorRole = "admin";
+                    }
+                    else
+                    {
+                        throw new UnauthorizedAccessException(
+                            $"BookingService: CancelBookingsAsync - caller is not authorized to cancel this booking");
+                    }
+                }
 
                 var timestamp = DateTime.UtcNow;
                 int canceledDoseNumber;
 
-                if (!foundBooking.IsDose1Completed && !foundBooking.IsD1RequestCanceled)
+                if (cancelingDose1)
                 {
                     // Cancel Dose 1 and free up the reserved hospital slot
                     foundBooking.IsD1RequestCanceled = true;
@@ -565,10 +640,7 @@ namespace Vaxtrack.Services
                     await _hospitalService.UpdateAvailableSlotsAsync(foundBooking.Dose1HospitalUid, 1);
                     canceledDoseNumber = 1;
                 }
-                else if (foundBooking.IsDose1Completed
-                    && !string.IsNullOrEmpty(foundBooking.Dose2HospitalUid)
-                    && !foundBooking.IsDose2Completed
-                    && !foundBooking.IsD2RequestCanceled)
+                else
                 {
                     // Cancel Dose 2 and free up the reserved hospital slot
                     foundBooking.IsD2RequestCanceled = true;
@@ -578,14 +650,10 @@ namespace Vaxtrack.Services
                     await _hospitalService.UpdateAvailableSlotsAsync(foundBooking.Dose2HospitalUid, 1);
                     canceledDoseNumber = 2;
                 }
-                else
-                {
-                    throw new Exception($"BookingService: CancelBookingsAsync - booking {bookingId} has no active dose request to cancel");
-                }
 
                 var updatedBooking = await _bookingRepository.GetBookingDetailsByBookingIdAsync(bookingId);
 
-                await LogAuditAsync(bookingId, canceledDoseNumber, "Cancelled", callerUserUid, callerIsAdmin ? "admin" : "user", comment);
+                await LogAuditAsync(bookingId, canceledDoseNumber, "Cancelled", callerUserUid, actorRole, comment);
 
                 // Only notify if someone else acted on this booking — no need to tell a user
                 // about their own self-cancellation.
@@ -638,22 +706,30 @@ namespace Vaxtrack.Services
                 if (!rejectingDose1 && !rejectingDose2)
                     throw new Exception($"BookingService: RejectBookingAsync - booking {bookingId} has no active dose request to reject");
 
-                // Only admin or hospital-admin (scoped to the relevant hospital) may reject — a plain owner cannot
-                string actorRole = "admin";
-                if (!callerIsAdmin)
+                // Only admin or hospital-admin (scoped to the relevant hospital) may reject — a plain
+                // owner cannot. Platform admin bypasses the hospital scoping only when that hospital
+                // currently has no hospital-admin assigned (same fallback as Approve).
+                string relevantHospitalIdForRejection = rejectingDose1
+                    ? foundBooking.Dose1HospitalUid
+                    : foundBooking.Dose2HospitalUid;
+                string relevantHospitalUidForRejection = await ResolveHospitalUidAsync(relevantHospitalIdForRejection);
+
+                bool isHospitalAdminForRejection = await _roleMappingRepository.IsUserInRoleAsync(
+                    callerUserUid, "hospital-admin", relevantHospitalUidForRejection);
+
+                string actorRole;
+                if (isHospitalAdminForRejection)
                 {
-                    string relevantHospitalId = rejectingDose1
-                        ? foundBooking.Dose1HospitalUid
-                        : foundBooking.Dose2HospitalUid;
-
-                    bool isHospitalAdmin = await _roleMappingRepository.IsUserInRoleAsync(
-                        callerUserUid, "hospital-admin", relevantHospitalId);
-
-                    if (!isHospitalAdmin)
-                        throw new UnauthorizedAccessException(
-                            $"BookingService: RejectBookingAsync - caller is not authorized to reject bookings at hospital {relevantHospitalId}");
-
                     actorRole = "hospital-admin";
+                }
+                else if (callerIsAdmin && !await HasHospitalAdminAssignedAsync(relevantHospitalUidForRejection))
+                {
+                    actorRole = "admin";
+                }
+                else
+                {
+                    throw new UnauthorizedAccessException(
+                        $"BookingService: RejectBookingAsync - caller is not authorized to reject bookings at hospital {relevantHospitalIdForRejection}");
                 }
 
                 var timestamp = DateTime.UtcNow;
@@ -732,23 +808,113 @@ namespace Vaxtrack.Services
             }
         }
 
+        public async Task<CertificateDto> GetCertificateAsync(string bookingId)
+        {
+            /*
+             * Public Certificate Logic:
+             * --------------------------
+             * Unauthenticated (AllowAnonymous) — anyone holding the bookingId/link can view or
+             * verify a completed vaccination, mirroring how a real certificate's QR code works.
+             * Deliberately exposes only certificate-relevant fields (name, age, gender, dose
+             * dates, hospital names) — never email/phone/address.
+             *
+             * Edge cases blocked:
+             *   - Booking not found                  → throws.
+             *   - Vaccination not yet fully completed → throws (nothing to certify yet).
+             */
+
+            ArgumentNullException.ThrowIfNull(bookingId);
+
+            try
+            {
+                var foundBooking = await _bookingRepository.GetBookingDetailsByBookingIdAsync(bookingId);
+                if (foundBooking == null)
+                    throw new Exception($"BookingService: GetCertificateAsync - booking {bookingId} not found");
+
+                if (!foundBooking.IsVaccinationCompleted)
+                    throw new Exception($"BookingService: GetCertificateAsync - booking {bookingId} vaccination is not yet fully completed");
+
+                var user = await _userRepository.GetUserDetailsByUserUidAsync(foundBooking.UserUid);
+                var dose1Hospital = await _hospitalRepository.GetHospitalByIdAsync(foundBooking.Dose1HospitalUid);
+                var dose2Hospital = string.IsNullOrEmpty(foundBooking.Dose2HospitalUid)
+                    ? null
+                    : await _hospitalRepository.GetHospitalByIdAsync(foundBooking.Dose2HospitalUid);
+
+                return new CertificateDto
+                {
+                    BookingId = foundBooking.BookingId,
+                    BeneficiaryName = user?.UserName ?? "",
+                    BeneficiaryAge = user?.UserAge ?? 0,
+                    BeneficiaryGender = user?.UserGender ?? "",
+                    Dose1HospitalName = dose1Hospital?.HospitalName ?? "",
+                    Dose1CompletedDate = foundBooking.Dose1CompletedDateTime,
+                    Dose2HospitalName = dose2Hospital?.HospitalName ?? "",
+                    Dose2CompletedDate = foundBooking.Dose2CompletedDateTime,
+                    VaccinationCompletedDate = foundBooking.VaccinationCompletedDateTime
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingService: GetCertificateAsync - {Message}", ex.Message);
+                throw new Exception($"BookingService: GetCertificateAsync - {ex.Message}", ex);
+            }
+        }
+
+        public async Task<Dictionary<string, string>> GetVaccinationStatusesByUserUidsAsync(List<string> userUids)
+        {
+            ArgumentNullException.ThrowIfNull(userUids);
+
+            try
+            {
+                var uidSet = userUids.ToHashSet();
+                var allBookings = await _bookingRepository.GetAllBookingDetailsAsync() ?? [];
+                return allBookings
+                    .Where(b => uidSet.Contains(b.UserUid))
+                    .ToDictionary(b => b.UserUid, b => ComputeVaccinationDisplayStatus(b));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BookingService: GetVaccinationStatusesByUserUidsAsync - {Message}", ex.Message);
+                throw new Exception($"BookingService: GetVaccinationStatusesByUserUidsAsync - {ex.Message}", ex);
+            }
+        }
+
         public async Task<List<BookingProfileDataDto>> GetActionableBookingsAsync(string callerUserUid, bool callerIsAdmin)
         {
             try
             {
+                // Booking rows store hospitals by HospitalId, but hospital-admin role mappings are
+                // scoped by HospitalUid — fetch all hospitals once to translate between the two.
+                var allHospitals = await _hospitalRepository.GetAllHospitalDetailsAsync() ?? [];
+                var hospitalIdByUid = allHospitals.ToDictionary(h => h.HospitalUid, h => h.HospitalId);
+                var hospitalUidById = allHospitals.ToDictionary(h => h.HospitalId, h => h.HospitalUid);
+
                 List<BookingModel> candidates;
+                HashSet<string>? hospitalUidsWithAdmin = null;
 
                 if (callerIsAdmin)
                 {
+                    // Platform admin's list is scoped down to only bookings whose actionable dose
+                    // belongs to a hospital with NO hospital-admin currently assigned — matches the
+                    // Approve/Reject/Cancel fallback rule, so the "Bookings Management" tab only ever
+                    // shows platform admin bookings they're actually allowed to act on.
                     candidates = await _bookingRepository.GetAllBookingDetailsAsync() ?? [];
+                    var allHospitalAdminMappings = await _roleMappingRepository.GetRoleMappingsByRoleTagAsync("hospital-admin", "");
+                    hospitalUidsWithAdmin = allHospitalAdminMappings.Select(m => m.ContextId).ToHashSet();
                 }
                 else
                 {
                     var mappings = await _roleMappingRepository.GetRoleMappingsByUserUidAsync(callerUserUid);
-                    var hospitalIds = mappings
+                    var myHospitalUids = mappings
                         .Where(m => m.RoleTag == "hospital-admin" && m.IsActive)
                         .Select(m => m.ContextId)
                         .Distinct()
+                        .ToList();
+
+                    // Translate this admin's HospitalUids to the HospitalIds actually stored on bookings
+                    var hospitalIds = myHospitalUids
+                        .Where(hospitalIdByUid.ContainsKey)
+                        .Select(uid => hospitalIdByUid[uid])
                         .ToList();
 
                     var seen = new Dictionary<string, BookingModel>();
@@ -763,6 +929,14 @@ namespace Vaxtrack.Services
                 }
 
                 var actionable = candidates.Where(IsActionable).ToList();
+
+                if (hospitalUidsWithAdmin is not null)
+                    actionable = actionable.Where(b =>
+                    {
+                        var relevantHospitalId = RelevantHospitalUidForAction(b);
+                        var relevantHospitalUid = hospitalUidById.GetValueOrDefault(relevantHospitalId, "");
+                        return !hospitalUidsWithAdmin.Contains(relevantHospitalUid);
+                    }).ToList();
 
                 List<BookingProfileDataDto> actionableDtos = [];
                 foreach (var booking in actionable)
@@ -802,6 +976,14 @@ namespace Vaxtrack.Services
                 && !booking.IsDose2Completed
                 && !booking.IsD2RequestCanceled;
             return dose1Actionable || dose2Actionable;
+        }
+
+        // Same dose1-first priority as Approve/Reject/Cancel — identifies which hospital "owns"
+        // a booking's currently-pending action, for fallback/scoping checks.
+        private static string RelevantHospitalUidForAction(BookingModel booking)
+        {
+            bool dose1Actionable = !booking.IsDose1Completed && !booking.IsD1RequestCanceled;
+            return dose1Actionable ? booking.Dose1HospitalUid : booking.Dose2HospitalUid;
         }
 
         public async Task<UpdateBookingResponseDto> UpdateBookingAsync(UpdateBookingRequestDto updateBookingRequest)

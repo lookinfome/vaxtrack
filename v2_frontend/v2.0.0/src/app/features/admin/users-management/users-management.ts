@@ -37,6 +37,11 @@ export class UsersManagement implements OnInit {
   filterPhone   = signal('');
   filterUserId  = signal('');
   filterUserUid = signal('');
+  filterRole    = signal<'' | 'admin' | 'hospitalAdmin' | 'member'>('');
+  filterVaccinationStatus = signal<'' | 'NotVaccinated' | 'Pending' | 'PartiallyVaccinated' | 'Vaccinated' | 'Rejected'>('');
+
+  sortBy  = signal<'name' | 'registered' | 'status' | 'vaccination'>('name');
+  sortDir = signal<'asc' | 'desc'>('asc');
 
   totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / PAGE_SIZE)));
 
@@ -85,6 +90,10 @@ export class UsersManagement implements OnInit {
       phone: this.filterPhone() || undefined,
       userId: this.filterUserId() || undefined,
       userUid: this.filterUserUid() || undefined,
+      role: this.filterRole() || undefined,
+      vaccinationStatus: this.filterVaccinationStatus() || undefined,
+      sortBy: this.sortBy(),
+      sortDir: this.sortDir(),
       page: this.page(),
       pageSize: PAGE_SIZE
     }).subscribe({
@@ -115,9 +124,17 @@ export class UsersManagement implements OnInit {
   onFilterPhoneChange(value: string): void { this.filterPhone.set(value); this.applyFilters(); }
   onFilterUserIdChange(value: string): void { this.filterUserId.set(value); this.applyFilters(); }
   onFilterUserUidChange(value: string): void { this.filterUserUid.set(value); this.applyFilters(); }
+  onFilterRoleChange(value: '' | 'admin' | 'hospitalAdmin' | 'member'): void { this.filterRole.set(value); this.applyFilters(); }
+  onFilterVaccinationStatusChange(value: '' | 'NotVaccinated' | 'Pending' | 'PartiallyVaccinated' | 'Vaccinated' | 'Rejected'): void {
+    this.filterVaccinationStatus.set(value); this.applyFilters();
+  }
+
+  onSortByChange(value: 'name' | 'registered' | 'status' | 'vaccination'): void { this.sortBy.set(value); this.applyFilters(); }
+  toggleSortDir(): void { this.sortDir.set(this.sortDir() === 'asc' ? 'desc' : 'asc'); this.applyFilters(); }
 
   hasActiveFilters(): boolean {
-    return !!this.filterName() || !!this.filterPhone() || !!this.filterUserId() || !!this.filterUserUid();
+    return !!this.filterName() || !!this.filterPhone() || !!this.filterUserId() || !!this.filterUserUid()
+      || !!this.filterRole() || !!this.filterVaccinationStatus();
   }
 
   clearFilters(): void {
@@ -125,7 +142,25 @@ export class UsersManagement implements OnInit {
     this.filterPhone.set('');
     this.filterUserId.set('');
     this.filterUserUid.set('');
+    this.filterRole.set('');
+    this.filterVaccinationStatus.set('');
     this.applyFilters();
+  }
+
+  // Icon + hover-tooltip labeling for the list card's vaccination-status indicator
+  vaccinationStatusMeta(status: string): { icon: string; colorClass: string; label: string } {
+    switch (status) {
+      case 'Vaccinated':
+        return { icon: '✓', colorClass: 'bg-emerald-100 text-emerald-700', label: 'Fully Vaccinated' };
+      case 'PartiallyVaccinated':
+        return { icon: '◐', colorClass: 'bg-blue-100 text-blue-700', label: 'Partially Vaccinated' };
+      case 'Pending':
+        return { icon: '⏳', colorClass: 'bg-amber-100 text-amber-700', label: 'Vaccination Pending' };
+      case 'Rejected':
+        return { icon: '✕', colorClass: 'bg-red-100 text-red-700', label: 'Vaccination Rejected' };
+      default:
+        return { icon: '–', colorClass: 'bg-slate-100 text-slate-500', label: 'Not Vaccinated' };
+    }
   }
 
   goToPage(p: number): void {

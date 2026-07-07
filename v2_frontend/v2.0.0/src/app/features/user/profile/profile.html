@@ -51,13 +51,24 @@
               <h1 class="text-xl font-bold text-white truncate">{{ user()!.userName }}</h1>
               <p class="text-sm text-slate-400 mt-0.5 truncate">{{ user()!.email }}</p>
             </div>
-            <span
-              class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full w-fit"
-              [class]="roleBadge().badgeClass"
-            >
-              <span class="w-1.5 h-1.5 rounded-full" [class]="roleBadge().dotClass"></span>
-              {{ roleBadge().label }}
-            </span>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span
+                class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full w-fit"
+                [class]="roleBadge().badgeClass"
+              >
+                <span class="w-1.5 h-1.5 rounded-full" [class]="roleBadge().dotClass"></span>
+                {{ roleBadge().label }}
+              </span>
+              @if (vaccinationStatus(); as vs) {
+                <span
+                  class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full w-fit"
+                  [class]="vs.badgeClass"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" [class]="vs.dotClass"></span>
+                  {{ vs.label }}
+                </span>
+              }
+            </div>
           </div>
 
           <!-- Actions column — Edit Profile button, level with Member badge -->
@@ -223,13 +234,22 @@
                     {{ uploadError() }}
                   </p>
                 }
-                @if (selectedFile()) {
-                  <button type="button" (click)="uploadProfilePicture()" [disabled]="uploading()"
-                    class="mt-2 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700
-                           disabled:opacity-50 rounded-lg shadow-sm transition-all duration-200 cursor-pointer">
-                    {{ uploading() ? 'Uploading...' : 'Save Picture' }}
-                  </button>
-                }
+                <div class="mt-2 flex items-center gap-2">
+                  @if (selectedFile()) {
+                    <button type="button" (click)="uploadProfilePicture()" [disabled]="uploading()"
+                      class="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700
+                             disabled:opacity-50 rounded-lg shadow-sm transition-all duration-200 cursor-pointer">
+                      {{ uploading() ? 'Uploading...' : 'Save Picture' }}
+                    </button>
+                  }
+                  @if (user()!.profilePicturePath && !selectedFile()) {
+                    <button type="button" (click)="removeProfilePicture()" [disabled]="removing()"
+                      class="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200
+                             disabled:opacity-50 rounded-lg transition-all duration-200 cursor-pointer">
+                      {{ removing() ? 'Removing...' : 'Remove Picture' }}
+                    </button>
+                  }
+                </div>
               </div>
             </div>
 

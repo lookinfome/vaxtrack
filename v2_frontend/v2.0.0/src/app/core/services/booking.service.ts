@@ -9,7 +9,8 @@ import {
   BookDose2Request, BookDose2Response,
   RebookDose1Request,
   BookingAuditLogEntry,
-  NextAvailableSlot
+  NextAvailableSlot,
+  Certificate
 } from '../models/booking.model';
 
 const BASE = '/api/vaxtrack/v1/booking';
@@ -84,5 +85,10 @@ export class BookingService {
 
   deleteBooking(bookingId: string): Observable<void> {
     return this.http.delete<void>(`${BASE}/deleteBooking/${bookingId}`);
+  }
+
+  // Public — no auth required, backs both the owner's PDF download and the public verify page.
+  getCertificate(bookingId: string): Observable<Certificate> {
+    return this.http.get<Certificate>(`${BASE}/getCertificate/${bookingId}`);
   }
 }

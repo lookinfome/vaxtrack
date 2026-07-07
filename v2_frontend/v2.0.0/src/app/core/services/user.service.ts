@@ -30,6 +30,10 @@ export class UserService {
     return this.http.post<UpdateUserResponse>(`${BASE}/uploadProfilePicture`, form);
   }
 
+  removeProfilePicture(userId: string): Observable<UpdateUserResponse> {
+    return this.http.put<UpdateUserResponse>(`${BASE}/removeProfilePicture/${userId}`, {});
+  }
+
   updateEmail(request: UpdateEmailRequest): Observable<UpdateEmailResponse> {
     return this.http.put<UpdateEmailResponse>(`${BASE}/updateEmail`, request);
   }
@@ -54,12 +58,22 @@ export class UserService {
     return this.http.delete<void>(`${BASE}/deleteUser/${userId}`);
   }
 
-  getUsersPaged(filters: { name?: string; phone?: string; userId?: string; userUid?: string; page: number; pageSize: number }): Observable<PagedUsersResponse> {
+  getUsersPaged(filters: {
+    name?: string; phone?: string; userId?: string; userUid?: string;
+    role?: 'admin' | 'hospitalAdmin' | 'member';
+    vaccinationStatus?: 'NotVaccinated' | 'Pending' | 'PartiallyVaccinated' | 'Vaccinated' | 'Rejected';
+    sortBy?: 'name' | 'registered' | 'status' | 'vaccination'; sortDir?: 'asc' | 'desc';
+    page: number; pageSize: number;
+  }): Observable<PagedUsersResponse> {
     let params = new HttpParams().set('page', filters.page).set('pageSize', filters.pageSize);
     if (filters.name) params = params.set('name', filters.name);
     if (filters.phone) params = params.set('phone', filters.phone);
     if (filters.userId) params = params.set('userId', filters.userId);
     if (filters.userUid) params = params.set('userUid', filters.userUid);
+    if (filters.role) params = params.set('role', filters.role);
+    if (filters.vaccinationStatus) params = params.set('vaccinationStatus', filters.vaccinationStatus);
+    if (filters.sortBy) params = params.set('sortBy', filters.sortBy);
+    if (filters.sortDir) params = params.set('sortDir', filters.sortDir);
     return this.http.get<PagedUsersResponse>(`${BASE}/getUsersPaged`, { params });
   }
 

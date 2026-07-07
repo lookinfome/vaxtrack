@@ -63,22 +63,22 @@
               <p class="text-xs text-slate-400">No pending requests.</p>
             }
             @for (r of pendingRequests(); track r.id) {
-              <div class="flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 rounded-xl border border-slate-100">
-                <div class="min-w-0">
+              <div class="px-4 py-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2.5">
+                <div>
                   <p class="text-sm font-semibold text-slate-800">
                     {{ r.requestType === 'HospitalAdminApplication' ? 'Hospital-Admin Application' : 'Account Reactivation' }}
                   </p>
-                  <p class="text-xs text-slate-400 mt-0.5 truncate">
-                    User: {{ r.userUid }}
+                  <p class="text-xs text-slate-400 mt-0.5 break-words">
+                    User: {{ r.userName ?? r.userUid }}@if (r.userId) { ({{ r.userId }}) }
                     @if (r.targetHospitalId) { · Hospital: {{ hospitalName(r.targetHospitalId) }} }
                   </p>
                   @if (r.userComment) {
-                    <p class="text-xs text-slate-500 mt-1 italic">"{{ r.userComment }}"</p>
+                    <p class="text-xs text-slate-500 mt-1 italic break-words whitespace-pre-wrap">"{{ r.userComment }}"</p>
                   }
                 </div>
-                <div class="flex gap-2 shrink-0">
+                <div class="flex flex-wrap gap-2">
                   @if (r.requestType === 'HospitalAdminApplication') {
-                    <a routerLink="/hospital"
+                    <a [routerLink]="['/hospital']" [queryParams]="{ select: r.targetHospitalId, search: r.userName }"
                       class="px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-all">
                       View Hospital
                     </a>

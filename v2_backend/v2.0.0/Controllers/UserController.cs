@@ -127,6 +127,25 @@ namespace Vaxtrack.Controllers
             }
         }
 
+        [HttpPut("{userId}")]
+        public async Task<ActionResult<UpdateUserResponseDto>> RemoveProfilePictureAsync(string userId)
+        {
+            try
+            {
+                var response = await _userService.RemoveProfilePictureAsync(userId, CallerUserUid, CallerIsAdmin);
+                return Ok(response);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserController: RemoveProfilePictureAsync - {Message}", ex.Message);
+                return StatusCode(500, "An unexpected error occurred.");
+            }
+        }
+
         [Authorize(Roles = "admin")]
         [HttpGet]
         public async Task<ActionResult<List<UserProfileDataDto>>> GetAllUsersAsync()
@@ -148,11 +167,12 @@ namespace Vaxtrack.Controllers
         [HttpGet]
         public async Task<ActionResult<PagedUsersResponseDto>> GetUsersPagedAsync(
             [FromQuery] string? name, [FromQuery] string? phone, [FromQuery] string? userId, [FromQuery] string? userUid,
+            [FromQuery] string? role, [FromQuery] string? vaccinationStatus, [FromQuery] string? sortBy, [FromQuery] string? sortDir,
             [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
             try
             {
-                var result = await _userService.GetUsersPagedAsync(name, phone, userId, userUid, page, pageSize);
+                var result = await _userService.GetUsersPagedAsync(name, phone, userId, userUid, role, vaccinationStatus, sortBy, sortDir, page, pageSize);
                 return Ok(result);
             }
             catch (Exception ex)

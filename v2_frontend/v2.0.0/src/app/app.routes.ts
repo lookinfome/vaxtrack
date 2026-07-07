@@ -40,5 +40,11 @@ export const routes: Routes = [
     path: 'account-reactivation',
     loadComponent: () => import('./features/account-reactivation/account-reactivation').then(m => m.AccountReactivation)
   },
+  {
+    // Public — anyone holding the certificate link/QR code can verify it, no login required
+    // (mirrors the real-world CoWIN QR-verification flow).
+    path: 'certificate/:bookingId',
+    loadComponent: () => import('./features/certificate-verify/certificate-verify').then(m => m.CertificateVerify)
+  },
   { path: '**', redirectTo: 'auth/login' }
 ];

@@ -4,6 +4,7 @@ import { DatePipe } from '@angular/common';
 import { BookingService } from '../../../core/services/booking.service';
 import { HospitalService } from '../../../core/services/hospital.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { CertificateService, buildVerifyUrl } from '../../../core/services/certificate.service';
 import { Booking, CreateBookingRequest, BookDose2Request, EditBookingRequest, RebookDose1Request } from '../../../core/models/booking.model';
 import { Hospital } from '../../../core/models/hospital.model';
 import { FooterComponent } from '../../../shared/components/footer/footer';
@@ -37,6 +38,7 @@ export class MyBookings implements OnInit {
   private bookingService = inject(BookingService);
   private hospitalService = inject(HospitalService);
   private authService   = inject(AuthService);
+  private certificateService = inject(CertificateService);
   private fb            = inject(FormBuilder);
 
   booking       = signal<Booking | null>(null);
@@ -46,6 +48,9 @@ export class MyBookings implements OnInit {
   actionError   = signal('');
   actionSuccess = signal('');
   showCancelConfirm = signal(false);
+  bookingHistoryExpanded = signal(false);
+  downloadingCertificate = signal(false);
+  shareCopied = signal(false);
 
   // true when the dose1-form view is being used to rebook a cancelled/rejected Dose 1
   // rather than book a brand-new Dose 1
@@ -502,6 +507,34 @@ export class MyBookings implements OnInit {
 
   confirmCancel(): void { this.showCancelConfirm.set(true); }
   dismissCancel(): void { this.showCancelConfirm.set(false); }
+
+  toggleBookingHistory(): void { this.bookingHistoryExpanded.set(!this.bookingHistoryExpanded()); }
+
+  downloadCertificate(): void {
+    const booking = this.booking();
+    if (!booking) return;
+
+    this.downloadingCertificate.set(true);
+    this.bookingService.getCertificate(booking.bookingId).subscribe({
+      next: (cert) => {
+        this.certificateService.downloadCertificate(cert).finally(() => this.downloadingCertificate.set(false));
+      },
+      error: (err) => {
+        this.downloadingCertificate.set(false);
+        this.actionError.set(err.error?.message ?? 'Failed to generate certificate. Please try again.');
+      }
+    });
+  }
+
+  shareCertificateLink(): void {
+    const booking = this.booking();
+    if (!booking) return;
+
+    navigator.clipboard.writeText(buildVerifyUrl(booking.bookingId)).then(() => {
+      this.shareCopied.set(true);
+      setTimeout(() => this.shareCopied.set(false), 4000);
+    });
+  }
 
   executeCancel(): void {
     const booking = this.booking();

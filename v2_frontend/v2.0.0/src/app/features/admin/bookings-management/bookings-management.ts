@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { BookingService } from '../../../core/services/booking.service';
 import { HospitalService } from '../../../core/services/hospital.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { Booking } from '../../../core/models/booking.model';
 import { Hospital } from '../../../core/models/hospital.model';
 import { FooterComponent } from '../../../shared/components/footer/footer';
@@ -18,6 +19,7 @@ type PendingAction = 'approve' | 'reject' | 'cancel';
 export class BookingsManagement implements OnInit {
   private bookingService = inject(BookingService);
   private hospitalService = inject(HospitalService);
+  readonly authService = inject(AuthService);
 
   bookings = signal<Booking[]>([]);
   hospitals = signal<Hospital[]>([]);

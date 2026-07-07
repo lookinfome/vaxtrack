@@ -13,6 +13,7 @@ namespace Vaxtrack.Dtos.HospitalDtos
         public int SlotsAvailable { get; set; }
         public string Status { get; set; } = "Active";
         public string? StatusComment { get; set; }
+        public int HospitalAdminCount { get; set; }
         public DateTime RegisteredDate { get; set; }
         public DateTime UpdatedDate { get; set; }
     }

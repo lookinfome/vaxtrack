@@ -1,6 +1,8 @@
 export interface UserRoleMapping {
   id: number;
   userUid: string;
+  userId?: string | null;
+  userName?: string | null;
   roleTag: string;
   contextId: string;
   isActive: boolean;
@@ -14,6 +16,8 @@ export type UserRequestStatus = 'Pending' | 'Approved' | 'Rejected';
 export interface UserRequest {
   id: number;
   userUid: string;
+  userId?: string | null;
+  userName?: string | null;
   requestType: UserRequestType;
   targetHospitalId: string | null;
   status: UserRequestStatus;

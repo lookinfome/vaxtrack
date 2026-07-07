@@ -42,6 +42,15 @@ namespace Vaxtrack.Interfaces
         // Read-only preview of the slot that would be assigned for this hospital+date — does not persist anything
         Task<NextAvailableSlotResponseDto> GetNextAvailableSlotAsync(string hospitalId, DateTime date);
 
+        // Public (unauthenticated) certificate view/verification — only for fully-completed
+        // vaccinations. Backs the downloadable PDF and the public share/verify link.
+        Task<CertificateDto> GetCertificateAsync(string bookingId);
+
+        // Bulk lookup backing the Users Management vaccination-status filter/sort/icon — maps
+        // UserUid to the same server-computed VaccinationDisplayStatus shown on the Profile page.
+        // Users with no booking are simply absent from the returned dictionary.
+        Task<Dictionary<string, string>> GetVaccinationStatusesByUserUidsAsync(List<string> userUids);
+
         Task DeleteBookingAsync(string bookingId);
         Task DeleteBookingsByUserUidAsync(string userUid);
         Task<bool> IsBookingExists(string bookingId);

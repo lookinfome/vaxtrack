@@ -108,6 +108,22 @@ namespace Vaxtrack.Repositories
             }
         }
 
+        public async Task<List<UserModel>> GetUsersByUserUidsAsync(List<string> userUids)
+        {
+            ArgumentNullException.ThrowIfNull(userUids);
+
+            try
+            {
+                if (userUids.Count == 0) return [];
+                return await _dbContext.Users.Where(u => userUids.Contains(u.UserUid) && !u.IsDeleted).ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UserRepository: GetUsersByUserUidsAsync - {Message}", ex.Message);
+                throw new Exception($"UserRepository: GetUsersByUserUidsAsync - {ex.Message}", ex);
+            }
+        }
+
         public async Task<bool> IsUserExists(string userId)
         {
             ArgumentNullException.ThrowIfNull(userId);

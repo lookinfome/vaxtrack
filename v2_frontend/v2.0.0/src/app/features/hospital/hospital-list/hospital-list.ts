@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
 import { HospitalService } from '../../../core/services/hospital.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -33,6 +34,7 @@ export class HospitalList implements OnInit {
   private userService        = inject(UserService);
   readonly authService       = inject(AuthService);
   private fb                 = inject(FormBuilder);
+  private route               = inject(ActivatedRoute);
 
   hospitals     = signal<Hospital[]>([]);
   loading       = signal(true);
@@ -51,9 +53,13 @@ export class HospitalList implements OnInit {
   filterPinCode = signal('');
   filterPhone   = signal('');
   filterEmail   = signal('');
+  filterHasAdmin = signal<'any' | 'with' | 'without'>('any');
+
+  sortField = signal<'name' | 'slots' | 'admin'>('name');
+  sortDir   = signal<'asc' | 'desc'>('asc');
 
   hasActiveFilters = computed(() =>
-    !!this.filterName() || !!this.filterPinCode() || !!this.filterPhone() || !!this.filterEmail()
+    !!this.filterName() || !!this.filterPinCode() || !!this.filterPhone() || !!this.filterEmail() || this.filterHasAdmin() !== 'any'
   );
 
   filteredHospitals = computed(() => {
@@ -61,18 +67,28 @@ export class HospitalList implements OnInit {
     const pinCode = this.filterPinCode().trim();
     const phone = this.filterPhone().trim();
     const email = this.filterEmail().toLowerCase().trim();
+    const hasAdmin = this.filterHasAdmin();
     return this.hospitals().filter(h =>
       (!name || h.hospitalName.toLowerCase().includes(name)) &&
       (!pinCode || (h.hospitalPinCode ?? '').includes(pinCode)) &&
       (!phone || (h.hospitalPhoneNumber ?? '').includes(phone)) &&
-      (!email || (h.hospitalEmail ?? '').toLowerCase().includes(email))
+      (!email || (h.hospitalEmail ?? '').toLowerCase().includes(email)) &&
+      (hasAdmin === 'any' || (hasAdmin === 'with') === (h.hospitalAdminCount > 0))
     );
   });
 
   // A hospital-admin only ever sees their own hospital(s) — never the full directory.
   visibleHospitals = computed(() => {
     const list = this.filteredHospitals();
-    return this.authService.isAdmin() ? list : list.filter(h => this.isMyHospital(h));
+    const scoped = this.authService.isAdmin() ? list : list.filter(h => this.isMyHospital(h));
+
+    const field = this.sortField();
+    const dir = this.sortDir() === 'asc' ? 1 : -1;
+    return [...scoped].sort((a, b) => {
+      if (field === 'slots') return (a.slotsAvailable - b.slotsAvailable) * dir;
+      if (field === 'admin') return (a.hospitalAdminCount - b.hospitalAdminCount) * dir;
+      return a.hospitalName.localeCompare(b.hospitalName) * dir;
+    });
   });
 
   totalAvailableSlots = computed(() =>
@@ -114,7 +130,17 @@ export class HospitalList implements OnInit {
   authorizeLoading = signal(false);
   authorizeError = signal('');
 
+  // Set from a Support-page deep-link (?select=hospitalId&search=userName) so a platform admin
+  // clicking "View Hospital" on a hospital-admin application lands directly on that hospital's
+  // detail panel with the requester's name pre-filled in the user search box.
+  private deepLinkHospitalId: string | null = null;
+  private deepLinkSearch: string | null = null;
+
   ngOnInit(): void {
+    const params = this.route.snapshot.queryParamMap;
+    this.deepLinkHospitalId = params.get('select');
+    this.deepLinkSearch = params.get('search');
+
     this.loadHospitals();
 
     if (!this.authService.isAdmin()) {
@@ -141,6 +167,17 @@ export class HospitalList implements OnInit {
           const refreshed = data.find(h => h.hospitalId === selected.hospitalId) ?? null;
           this.selectedHospital.set(refreshed);
         }
+
+        // Deep-link from Support page: auto-select the hospital and pre-fill the user search
+        if (this.deepLinkHospitalId) {
+          const target = data.find(h => h.hospitalId === this.deepLinkHospitalId);
+          if (target) {
+            this.selectHospital(target);
+            if (this.deepLinkSearch) this.onUserSearchChange(this.deepLinkSearch);
+          }
+          this.deepLinkHospitalId = null;
+          this.deepLinkSearch = null;
+        }
       },
       error: (err) => { this.error.set(err.error?.message ?? 'Failed to load hospitals.'); this.loading.set(false); }
     });
@@ -150,12 +187,17 @@ export class HospitalList implements OnInit {
   onFilterPinCodeChange(value: string): void { this.filterPinCode.set(value); }
   onFilterPhoneChange(value: string): void { this.filterPhone.set(value); }
   onFilterEmailChange(value: string): void { this.filterEmail.set(value); }
+  onFilterHasAdminChange(value: 'any' | 'with' | 'without'): void { this.filterHasAdmin.set(value); }
+
+  onSortFieldChange(value: 'name' | 'slots' | 'admin'): void { this.sortField.set(value); }
+  toggleSortDir(): void { this.sortDir.set(this.sortDir() === 'asc' ? 'desc' : 'asc'); }
 
   clearFilters(): void {
     this.filterName.set('');
     this.filterPinCode.set('');
     this.filterPhone.set('');
     this.filterEmail.set('');
+    this.filterHasAdmin.set('any');
   }
 
   slotsPercent(h: Hospital): number {

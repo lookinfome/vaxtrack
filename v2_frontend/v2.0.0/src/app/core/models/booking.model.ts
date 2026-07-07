@@ -132,3 +132,15 @@ export interface NextAvailableSlot {
   slotNumber: number;
   slotDateTime: string;
 }
+
+export interface Certificate {
+  bookingId: string;
+  beneficiaryName: string;
+  beneficiaryAge: number;
+  beneficiaryGender: string;
+  dose1HospitalName: string;
+  dose1CompletedDate: string | null;
+  dose2HospitalName: string;
+  dose2CompletedDate: string | null;
+  vaccinationCompletedDate: string | null;
+}

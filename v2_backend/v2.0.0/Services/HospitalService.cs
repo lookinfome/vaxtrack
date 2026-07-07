@@ -270,7 +270,10 @@ namespace Vaxtrack.Services
                 if (foundHospital is null)
                     throw new Exception($"HospitalService: GetHospitalByIdAsync - hospital {hospitalId} not found");
 
-                return MapToHospitalProfileDataDto(foundHospital);
+                var dto = MapToHospitalProfileDataDto(foundHospital);
+                var admins = await _roleMappingRepository.GetRoleMappingsByRoleTagAsync("hospital-admin", foundHospital.HospitalUid);
+                dto.HospitalAdminCount = admins.Count;
+                return dto;
             }
             catch (Exception ex)
             {
@@ -285,10 +288,22 @@ namespace Vaxtrack.Services
             {
                 var foundHospitalList = await _hospitalRepository.GetAllHospitalDetailsAsync();
 
+                // Batch-fetch every active hospital-admin mapping once and group by hospital
+                // (ContextId = HospitalUid) to avoid an N+1 query per hospital card.
+                var allHospitalAdminMappings = await _roleMappingRepository.GetRoleMappingsByRoleTagAsync("hospital-admin", "");
+                var adminCountByHospitalUid = allHospitalAdminMappings
+                    .GroupBy(m => m.ContextId)
+                    .ToDictionary(g => g.Key, g => g.Count());
+
                 List<HospitalProfileDataDto> hospitalList = [];
                 if (foundHospitalList is not null)
                     foreach (var hospital in foundHospitalList)
-                        hospitalList.Add(MapToHospitalProfileDataDto(hospital));
+                    {
+                        var dto = MapToHospitalProfileDataDto(hospital);
+                        adminCountByHospitalUid.TryGetValue(hospital.HospitalUid, out var count);
+                        dto.HospitalAdminCount = count;
+                        hospitalList.Add(dto);
+                    }
 
                 return hospitalList;
             }
@@ -629,7 +644,10 @@ namespace Vaxtrack.Services
                 if (credentials is null || !BC.Verify(password, credentials.PasswordHash))
                     throw new ArgumentException("Incorrect password. Please try again.");
 
-                bool hasActiveBookings = await _bookingRepository.HasActiveBookingsForHospitalAsync(foundHospital.HospitalUid);
+                // Booking.Dose1HospitalUid/Dose2HospitalUid actually store the hospital's readable
+                // HospitalId (a pre-existing naming inconsistency in the booking flow), so the active-
+                // bookings check must be keyed by HospitalId, not HospitalUid, to actually find matches.
+                bool hasActiveBookings = await _bookingRepository.HasActiveBookingsForHospitalAsync(foundHospital.HospitalId);
                 if (hasActiveBookings)
                     throw new Exception($"HospitalService: AuthorizeUnregisterAsync - hospital {hospitalId} has active bookings; cancel or transfer them before unregistering");
 

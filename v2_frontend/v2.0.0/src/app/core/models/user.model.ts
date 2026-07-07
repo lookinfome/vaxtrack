@@ -1,4 +1,5 @@
 export type UserStatus = 'Active' | 'Disabled' | 'PendingReactivation';
+export type VaccinationStatus = 'NotVaccinated' | 'Pending' | 'PartiallyVaccinated' | 'Vaccinated' | 'Rejected';
 
 export interface User {
   userId: string;
@@ -13,6 +14,8 @@ export interface User {
   userPinCode: string;
   profilePicturePath: string;
   userRole: boolean;
+  isHospitalAdmin: boolean;
+  vaccinationStatus: VaccinationStatus;
   status: UserStatus;
   statusComment: string | null;
   createdAt: string;

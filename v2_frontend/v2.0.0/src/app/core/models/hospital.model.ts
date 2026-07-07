@@ -12,6 +12,7 @@ export interface Hospital {
   slotsAvailable: number;
   status: HospitalStatus;
   statusComment: string | null;
+  hospitalAdminCount: number;
   registeredDate: string;
   updatedDate: string;
 }

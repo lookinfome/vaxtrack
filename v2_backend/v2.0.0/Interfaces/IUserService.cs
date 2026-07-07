@@ -15,7 +15,7 @@ namespace Vaxtrack.Interfaces
         // Admin-only paginated/filtered listing that backs the Users Management tab.
         // Filters are all optional and case-insensitive substring matches; done in-memory
         // (dataset is small) to avoid complex EF query-building for a rarely-changing table.
-        Task<PagedUsersResponseDto> GetUsersPagedAsync(string? name, string? phone, string? userId, string? userUid, int page, int pageSize);
+        Task<PagedUsersResponseDto> GetUsersPagedAsync(string? name, string? phone, string? userId, string? userUid, string? role, string? vaccinationStatus, string? sortBy, string? sortDir, int page, int pageSize);
 
         Task<UpdateEmailResponseDto> UpdateEmailAsync(UpdateEmailRequestDto updateEmailRequestDto, string callerUserUid, bool callerIsAdmin);
         Task<ChangePasswordResponseDto> ChangePasswordAsync(ChangePasswordRequestDto changePasswordRequestDto, string callerUserUid, bool callerIsAdmin);
@@ -23,6 +23,9 @@ namespace Vaxtrack.Interfaces
         // Validates, resizes, and re-encodes the uploaded image before storing it under a fixed
         // per-user filename (auto-overwrites any previous picture — no unbounded storage growth).
         Task<UpdateUserResponseDto> UploadProfilePictureAsync(string userId, IFormFile file, string callerUserUid, bool callerIsAdmin);
+
+        // Deletes the stored file (if any) and clears ProfilePicturePath — frontend falls back to default avatar.
+        Task<UpdateUserResponseDto> RemoveProfilePictureAsync(string userId, string callerUserUid, bool callerIsAdmin);
 
         // Admin-initiated delete (by UserId)
         Task DeleteUserAsync(string userId);

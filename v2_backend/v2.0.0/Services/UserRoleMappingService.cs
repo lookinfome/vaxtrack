@@ -169,9 +169,16 @@ namespace Vaxtrack.Services
             {
                 var foundMappings = await _roleMappingRepository.GetRoleMappingsByRoleTagAsync(roleTag, contextId);
 
+                var userUids = foundMappings.Select(m => m.UserUid).Distinct().ToList();
+                var users = await _userRepository.GetUsersByUserUidsAsync(userUids);
+                var userByUid = users.ToDictionary(u => u.UserUid);
+
                 List<UserRoleMappingProfileDto> roleList = [];
                 foreach (var mapping in foundMappings)
-                    roleList.Add(MapToProfileDto(mapping));
+                {
+                    userByUid.TryGetValue(mapping.UserUid, out var user);
+                    roleList.Add(MapToProfileDto(mapping, user?.UserId, user?.UserName));
+                }
 
                 return roleList;
             }
@@ -331,7 +338,16 @@ namespace Vaxtrack.Services
             try
             {
                 var pending = await _userRequestRepository.GetAllPendingAsync();
-                return pending.Select(MapToUserRequestDto).ToList();
+
+                var userUids = pending.Select(r => r.UserUid).Distinct().ToList();
+                var users = await _userRepository.GetUsersByUserUidsAsync(userUids);
+                var userByUid = users.ToDictionary(u => u.UserUid);
+
+                return pending.Select(r =>
+                {
+                    userByUid.TryGetValue(r.UserUid, out var user);
+                    return MapToUserRequestDto(r, user?.UserId, user?.UserName);
+                }).ToList();
             }
             catch (Exception ex)
             {
@@ -355,12 +371,14 @@ namespace Vaxtrack.Services
             return request;
         }
 
-        private static UserRequestDto MapToUserRequestDto(UserRequestModel request)
+        private static UserRequestDto MapToUserRequestDto(UserRequestModel request, string? userId = null, string? userName = null)
         {
             return new UserRequestDto
             {
                 Id = request.Id,
                 UserUid = request.UserUid,
+                UserId = userId,
+                UserName = userName,
                 RequestType = request.RequestType,
                 TargetHospitalId = request.TargetHospitalId,
                 Status = request.Status,
@@ -387,12 +405,14 @@ namespace Vaxtrack.Services
             };
         }
 
-        private static UserRoleMappingProfileDto MapToProfileDto(UserRoleMappingModel mapping)
+        private static UserRoleMappingProfileDto MapToProfileDto(UserRoleMappingModel mapping, string? userId = null, string? userName = null)
         {
             return new UserRoleMappingProfileDto
             {
                 Id = mapping.Id,
                 UserUid = mapping.UserUid,
+                UserId = userId,
+                UserName = userName,
                 RoleTag = mapping.RoleTag,
                 ContextId = mapping.ContextId,
                 IsActive = mapping.IsActive,

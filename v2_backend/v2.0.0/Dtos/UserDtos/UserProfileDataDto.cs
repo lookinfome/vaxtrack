@@ -14,6 +14,8 @@ namespace Vaxtrack.Dtos.UserDtos
         public string UserPinCode { get; set; } = "";
         public string ProfilePicturePath { get; set; } = "";
         public bool UserRole { get; set; } = false;
+        public bool IsHospitalAdmin { get; set; } = false;
+        public string VaccinationStatus { get; set; } = "NotVaccinated";
         public string Status { get; set; } = "Active";
         public string? StatusComment { get; set; }
         public DateTime CreatedAt { get; set; }
