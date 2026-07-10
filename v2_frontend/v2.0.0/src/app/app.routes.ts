@@ -36,6 +36,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/support/support').then(m => m.Support)
   },
   {
+    // Public — general-audience page describing the product and its version history, no login required.
+    path: 'about',
+    loadComponent: () => import('./features/about/about').then(m => m.About)
+  },
+  {
     // Public — a disabled account can never log in, so this must be reachable without a session.
     path: 'account-reactivation',
     loadComponent: () => import('./features/account-reactivation/account-reactivation').then(m => m.AccountReactivation)

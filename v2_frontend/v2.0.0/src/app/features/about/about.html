@@ -1,0 +1,243 @@
+<div class="min-h-screen bg-slate-50">
+
+  <!-- ── Hero ──────────────────────────────────────────────────────────── -->
+  <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-teal-900 relative overflow-hidden">
+    <div class="absolute -top-16 -right-16 w-64 h-64 bg-teal-500/15 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-16 -left-16 w-64 h-64 bg-slate-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="max-w-4xl mx-auto px-6 py-12 relative z-10">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-white">About VaxTrack</h1>
+      </div>
+      <p class="text-sm text-slate-300 leading-relaxed max-w-2xl">
+        VaxTrack is a two-dose vaccination management platform. It gives people one place to book and
+        track their vaccination journey, gives hospitals self-service control over their own slot
+        capacity, and gives program administrators full oversight — with a record of who did what, and
+        why, on every action. Nothing here replaces medical advice; it's simply here to make the
+        logistics of getting vaccinated a little less stressful, for everyone involved.
+      </p>
+    </div>
+  </div>
+
+  <div class="max-w-4xl mx-auto px-6 py-8 space-y-10">
+
+    <!-- ── Coming soon: Help Center ──────────────────────────────────────── -->
+    <div class="flex items-start gap-3.5 px-5 py-4 bg-amber-50 border border-amber-100 rounded-2xl">
+      <div class="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+        <svg class="w-4.5 h-4.5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-amber-700 mb-0.5">Coming Soon</p>
+        <p class="text-sm text-amber-900 leading-relaxed">
+          A Help Center is on its way. v1.3.0 shipped a Support module for raising tickets, but left it
+          unfinished — no attachments, no status tracker. v2.0.0 is bringing it back from the ground up,
+          powered by the same live notifications and audit trail already running through the rest of the
+          app, so you'll always know where your request stands.
+        </p>
+      </div>
+    </div>
+
+    <!-- ── Feature carousel ──────────────────────────────────────────────── -->
+    <section
+      class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"
+      (mouseenter)="pauseAutoAdvance()" (mouseleave)="resumeAutoAdvance()">
+      <div class="h-1 bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-500"></div>
+
+      <div class="px-6 sm:px-8 pt-8">
+
+        <!-- Screenshot frame: a browser-chrome strip over the real, live app screen -->
+        <div class="relative rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-slate-100">
+          <div class="h-6 flex items-center gap-1.5 px-3 bg-slate-100 border-b border-slate-200">
+            <span class="w-2 h-2 rounded-full bg-red-300"></span>
+            <span class="w-2 h-2 rounded-full bg-amber-300"></span>
+            <span class="w-2 h-2 rounded-full bg-emerald-300"></span>
+          </div>
+          @switch (currentSlide()) {
+            @case (0) {
+              <img src="/about/slide-booking.png" alt="Booking Dose 1 in the VaxTrack app"
+                class="w-full aspect-[9/4] object-cover object-top" />
+            }
+            @case (1) {
+              <img src="/about/slide-hospitals.png" alt="Vaccination Centres management in the VaxTrack app"
+                class="w-full aspect-[9/4] object-cover object-top" />
+            }
+            @case (2) {
+              <img src="/about/slide-oversight.png" alt="Bookings Management approval queue in the VaxTrack app"
+                class="w-full aspect-[9/4] object-cover object-top" />
+            }
+            @case (3) {
+              <img src="/about/slide-certificate.png" alt="Public vaccination certificate verification page"
+                class="w-full aspect-[9/4] object-cover object-top" />
+            }
+          }
+
+          <button (click)="prevSlide()" aria-label="Previous"
+            class="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full
+                   bg-white/90 text-slate-500 hover:text-teal-600 shadow-sm transition-all duration-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button (click)="nextSlide()" aria-label="Next"
+            class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full
+                   bg-white/90 text-slate-500 hover:text-teal-600 shadow-sm transition-all duration-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Caption: icon + headline + one line -->
+        <div class="flex items-start gap-3 py-6">
+          <div class="w-9 h-9 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-center shrink-0">
+            @switch (currentSlide()) {
+              @case (0) {
+                <svg class="w-4.5 h-4.5 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              }
+              @case (1) {
+                <svg class="w-4.5 h-4.5 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              }
+              @case (2) {
+                <svg class="w-4.5 h-4.5 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              @case (3) {
+                <svg class="w-4.5 h-4.5 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              }
+            }
+          </div>
+          <div>
+            @switch (currentSlide()) {
+              @case (0) {
+                <h3 class="text-base font-bold text-slate-900 mb-1">A dose you can always find</h3>
+                <p class="text-sm text-slate-500 leading-relaxed">
+                  Book Dose 1 and Dose 2 through the same simple flow, with your hospital's confirmation at
+                  every step — and a clear next action if a slot falls through.
+                </p>
+              }
+              @case (1) {
+                <h3 class="text-base font-bold text-slate-900 mb-1">Hospitals stay in control of their own capacity</h3>
+                <p class="text-sm text-slate-500 leading-relaxed">
+                  Each hospital manages its own contact details, slot capacity, and dose approvals directly
+                  — no waiting on a central team to update a spreadsheet.
+                </p>
+              }
+              @case (2) {
+                <h3 class="text-base font-bold text-slate-900 mb-1">Every action is accountable</h3>
+                <p class="text-sm text-slate-500 leading-relaxed">
+                  Approvals, rejections, and status changes are logged with who made the call and why —
+                  nothing about your booking changes quietly.
+                </p>
+              }
+              @case (3) {
+                <h3 class="text-base font-bold text-slate-900 mb-1">A certificate that speaks for itself</h3>
+                <p class="text-sm text-slate-500 leading-relaxed">
+                  Download your vaccination certificate, or share a link anyone can verify — without
+                  exposing your personal contact details.
+                </p>
+              }
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-center gap-2 pb-6">
+        @for (s of [0, 1, 2, 3]; track s) {
+          <button (click)="goToSlide(s)" [attr.aria-label]="'Go to slide ' + (s + 1)"
+            class="h-1.5 rounded-full transition-all duration-300"
+            [class]="currentSlide() === s ? 'w-6 bg-teal-500' : 'w-1.5 bg-slate-200'">
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- ── Journey ───────────────────────────────────────────────────────── -->
+    <section>
+      <div class="mb-6">
+        <h2 class="text-lg font-bold text-slate-900">How VaxTrack Got Here</h2>
+        <p class="text-sm text-slate-500 mt-1">From a COVID-era booking portal to a platform three roles rely on, one version at a time.</p>
+      </div>
+
+      <div class="space-y-0">
+        @for (entry of journey; track entry.version; let last = $last) {
+          <div class="relative pl-10 pb-8" [class.pb-0]="last">
+            @if (!last) {
+              <div class="absolute left-[7px] top-4 bottom-0 w-px bg-slate-200"></div>
+            }
+            <div class="absolute left-0 top-1 w-4 h-4 rounded-full ring-4 ring-slate-50" [class]="entry.dot"></div>
+
+            <div class="flex items-center gap-2.5 flex-wrap mb-1">
+              <span class="text-sm font-bold text-slate-900">{{ entry.version }}</span>
+              <span class="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-teal-700 bg-teal-50 border border-teal-100 rounded-full">
+                {{ entry.tag }}
+              </span>
+            </div>
+            <p class="text-sm font-semibold text-slate-700 mb-2">{{ entry.theme }}</p>
+            <ul class="space-y-1.5">
+              @for (h of entry.highlights; track h) {
+                <li class="text-sm text-slate-500 leading-relaxed flex gap-2">
+                  <span class="text-teal-400 shrink-0">&bull;</span>
+                  <span>{{ h }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- ── For Developers ───────────────────────────────────────────────── -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <button (click)="toggleDevDetails()"
+        class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-slate-50 transition-colors duration-200">
+        <div class="flex items-center gap-2.5">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+          </svg>
+          <span class="text-sm font-bold text-slate-900">For Developers</span>
+          <span class="text-xs text-slate-400">— the technical changelog behind the story above</span>
+        </div>
+        <svg class="w-4 h-4 text-slate-400 transition-transform duration-200" [class.rotate-90]="showDevDetails()"
+          fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      @if (showDevDetails()) {
+        <div class="px-6 pb-6 space-y-5 border-t border-slate-100 pt-5">
+          @for (entry of journey; track entry.version) {
+            <div>
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="w-2 h-2 rounded-full" [class]="entry.dot"></span>
+                <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">{{ entry.version }}</span>
+              </div>
+              <ul class="space-y-1.5 pl-4">
+                @for (d of entry.forDevelopers; track d) {
+                  <li class="text-xs text-slate-500 leading-relaxed font-mono">{{ d }}</li>
+                }
+              </ul>
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+  </div>
+
+  <app-footer />
+
+</div>
