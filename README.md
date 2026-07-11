@@ -8,6 +8,10 @@ oversight of hospitals and users, with a complete audit trail on every action.
 
 **Current version:** v2.0.0 (backend: ASP.NET Core / .NET 10, frontend: Angular 20)
 
+New to the codebase? Read this file top to bottom once, then jump into
+[Documentation](#documentation) for the full specs. Everything here is scoped to
+what you need to get productive — the linked documents carry the depth.
+
 ---
 
 ## Table of Contents
@@ -15,9 +19,9 @@ oversight of hospitals and users, with a complete audit trail on every action.
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
 - [Roles & Access Model](#roles--access-model)
 - [API Overview](#api-overview)
+- [Getting Started](#getting-started)
 - [Documentation](#documentation)
 - [Versioning](#versioning)
 
@@ -42,15 +46,19 @@ oversight of hospitals and users, with a complete audit trail on every action.
 
 ## Tech Stack
 
-| Layer          | Technology                                              |
-|----------------|----------------------------------------------------------|
-| Backend        | ASP.NET Core Web API (.NET 10), C# 13                    |
-| Data Access    | Entity Framework Core 10 over Microsoft SQL Server       |
-| Authentication | JWT Bearer (HMAC-SHA256) with server-side revocation     |
-| Password Hash  | BCrypt.Net-Next                                          |
-| Logging        | Serilog (console + rolling file sinks)                   |
-| Frontend       | Angular 20 (standalone components) + TailwindCSS         |
-| API Docs       | ASP.NET Core OpenAPI, plus Bruno-compatible API contracts |
+| Layer          | Technology                                                |
+|----------------|------------------------------------------------------------|
+| Backend        | ASP.NET Core Web API (.NET 10), C# 13                      |
+| Data Access    | Entity Framework Core 10 over Microsoft SQL Server          |
+| Authentication | JWT Bearer (HMAC-SHA256) with server-side revocation        |
+| Password Hash  | BCrypt.Net-Next                                             |
+| Logging        | Serilog (console + rolling file sinks)                      |
+| Frontend       | Angular 20 (standalone components) + TailwindCSS            |
+| API Docs       | ASP.NET Core OpenAPI, plus Bruno-compatible API contracts    |
+
+If any of these are new to you (say, JWT or EF Core migrations), the
+[Technical Specification Document](#documentation) explains each one in the context
+of how VaxTrack actually uses it — no need to go hunting for generic tutorials first.
 
 ## Project Structure
 
@@ -72,9 +80,48 @@ vaxtrack/
 │   ├── vaxtrack - api contracts/       # Bruno-compatible request collections, per module
 │   ├── vaxtrack - sql queries/         # Seed data, read/truncate reference scripts
 │   ├── vaxtrack - daily progress/      # Dated engineering change logs
-│   └── vaxtrack - support documents/   # Functional Specification Document (PDF), etc.
+│   └── vaxtrack - support documents/   # Functional Spec, Technical Spec, Test Cases, Project Review
 └── README.md
 ```
+
+The backend follows a standard Controller → Service → Repository layering — request
+validation and routing in Controllers, business rules and authorization checks in
+Services, EF Core data access in Repositories. The frontend groups by feature
+(`features/booking`, `features/hospital`, etc.) rather than by file type, so
+everything for one screen or flow lives together.
+
+## Roles & Access Model
+
+| Role              | Scope                                                                                    |
+|-------------------|--------------------------------------------------------------------------------------------|
+| **Normal User**   | Full control over their own profile and booking; no visibility into other users' data.     |
+| **Hospital Admin**| A normal user additionally scoped to exactly one hospital — can manage that hospital's contact info, slot capacity, and dose approvals only. |
+| **Platform Admin**| Unconditional access across every module — user/hospital lifecycle, all bookings, role assignments, and pending-request queues. |
+
+Every role is enforced server-side, not just hidden in the UI — the same rules apply
+whether a request comes from the Angular app or a raw API call. Full role
+definitions, the permission matrix, and each endpoint's authorization requirement
+are in the
+[Functional Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/01-Functional-Specification-Document.docx).
+
+## API Overview
+
+The API is organised into six modules, each with its own controller:
+
+| Module           | Base Route                          | Responsibility                                            |
+|-------------------|--------------------------------------|-------------------------------------------------------------|
+| Auth              | `/api/vaxtrack/v1/auth`              | Login, logout, password recovery, reactivation requests     |
+| User              | `/api/vaxtrack/v1/user`              | Registration, profile, and the full user lifecycle          |
+| Hospital          | `/api/vaxtrack/v1/hospital`          | Hospital directory, slot capacity, disable/reactivate/unregister |
+| Booking           | `/api/vaxtrack/v1/booking`           | Dose booking, approval, cancellation, certificates           |
+| UserRoleMapping   | `/api/vaxtrack/v1/userrolemapping`   | Scoped role assignment and hospital-admin applications        |
+| Notification      | `/api/vaxtrack/v1/notification`      | In-app notification delivery and read state                   |
+
+Ready-to-import request collections for every endpoint (Bruno / Open Collection
+format) live in `Documents/v2_docs/vaxtrack - api contracts/`, one folder per
+module. Request/response payloads, status codes, and error contracts for each
+endpoint are detailed in the
+[Technical Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/02-Technical-Specification-Document.docx).
 
 ## Getting Started
 
@@ -121,46 +168,23 @@ to the backend at `http://localhost:5119` (see `proxy.conf.json`).
 Log in with a seeded account (see the Seed Data script), or register a new user, then
 book a vaccination slot at one of the seeded hospitals.
 
-## Roles & Access Model
-
-| Role              | Scope                                                                 |
-|-------------------|------------------------------------------------------------------------|
-| **Normal User**   | Full control over their own profile and booking; no visibility into other users' data. |
-| **Hospital Admin**| A normal user additionally scoped to exactly one hospital — can manage that hospital's contact info, slot capacity, and dose approvals only. |
-| **Platform Admin**| Unconditional access across every module — user/hospital lifecycle, all bookings, role assignments, and pending-request queues. |
-
-Full role definitions, the permission matrix, and every endpoint's authorization
-requirement are documented in the Functional Specification Document (see
-[Documentation](#documentation)).
-
-## API Overview
-
-The API is organised into six modules, each with its own controller:
-
-| Module             | Base Route                              | Responsibility                                  |
-|---------------------|------------------------------------------|--------------------------------------------------|
-| Auth                | `/api/vaxtrack/v1/auth`                  | Login, logout, password recovery, reactivation requests |
-| User                | `/api/vaxtrack/v1/user`                  | Registration, profile, and the full user lifecycle |
-| Hospital            | `/api/vaxtrack/v1/hospital`              | Hospital directory, slot capacity, disable/reactivate/unregister |
-| Booking             | `/api/vaxtrack/v1/booking`               | Dose booking, approval, cancellation, certificates |
-| UserRoleMapping     | `/api/vaxtrack/v1/userrolemapping`       | Scoped role assignment and hospital-admin applications |
-| Notification        | `/api/vaxtrack/v1/notification`          | In-app notification delivery and read state       |
-
-Ready-to-import request collections for every endpoint (Bruno / Open Collection
-format) live in `Documents/v2_docs/vaxtrack - api contracts/`, organised one folder
-per module.
-
 ## Documentation
 
-All project documentation lives under `Documents/v2_docs/`:
+All project documentation lives under `Documents/v2_docs/`. The four core
+deliverables — pick based on what you're trying to do:
+
+| Document | Use it to | Audience |
+|----------|-----------|----------|
+| [Functional Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/01-Functional-Specification-Document.docx) | Understand *what* the app does — business requirements, roles, workflows, permission matrix, system diagrams | Business stakeholders, all developers |
+| [Technical Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/02-Technical-Specification-Document.docx) | Understand *how* it's built — architecture, HLD/LLD, every module's frontend + backend implementation detail | Developers (any experience level), QA, tech leads |
+| [Test Case Sheet](Documents/v2_docs/vaxtrack%20-%20support%20documents/VaxTrack_Test_Case_Sheet.xlsx) | Look up or execute QA test cases across every module and feature | QA, developers, tech/team leads |
+| [Project Development Review Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/04-Project-Development-Review-Document.docx) | Prep for or run a deep architecture/design review — structured Q&A on every part of the build | Tech leads, project delivery managers, senior developers |
+
+Other reference material:
 
 - **API Contracts** — `vaxtrack - api contracts/`: importable request collections per module.
 - **SQL Reference** — `vaxtrack - sql queries/`: seed data, read, and truncate scripts.
 - **Daily Progress** — `vaxtrack - daily progress/`: dated engineering change logs.
-- **Support Documents** — `vaxtrack - support documents/`: the Functional Specification
-  Document (business requirements, roles, workflows, and system diagrams). Companion
-  Architecture & Operational Flows, Technical Specification, and Test Cases documents
-  are planned.
 
 ## Versioning
 
