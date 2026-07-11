@@ -27,7 +27,9 @@ Thumbs.db
 # Environment
 .env
 .env.local
+appsettings.json
 appsettings.Development.json
+!appsettings.Template.json
 
 # Build outputs
 dist/
