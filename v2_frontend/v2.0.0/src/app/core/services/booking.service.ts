@@ -12,8 +12,9 @@ import {
   NextAvailableSlot,
   Certificate
 } from '../models/booking.model';
+import { environment } from '../../../environments/environment';
 
-const BASE = '/api/vaxtrack/v1/booking';
+const BASE = `${environment.apiBaseUrl}/api/vaxtrack/v1/booking`;
 
 @Injectable({ providedIn: 'root' })
 export class BookingService {

@@ -2,8 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { UserRoleMapping, UserRequest } from '../models/role-mapping.model';
+import { environment } from '../../../environments/environment';
 
-const BASE = '/api/vaxtrack/v1/userrolemapping';
+const BASE = `${environment.apiBaseUrl}/api/vaxtrack/v1/userrolemapping`;
 
 @Injectable({ providedIn: 'root' })
 export class RoleMappingService {

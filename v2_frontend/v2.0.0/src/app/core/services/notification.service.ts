@@ -2,8 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { AppNotification } from '../models/notification.model';
+import { environment } from '../../../environments/environment';
 
-const BASE = '/api/vaxtrack/v1/notification';
+const BASE = `${environment.apiBaseUrl}/api/vaxtrack/v1/notification`;
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {

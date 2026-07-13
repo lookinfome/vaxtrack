@@ -6,8 +6,9 @@ import {
   CreateHospitalRequest, CreateHospitalResponse,
   UpdateHospitalRequest, UpdateHospitalResponse
 } from '../models/hospital.model';
+import { environment } from '../../../environments/environment';
 
-const BASE = '/api/vaxtrack/v1/hospital';
+const BASE = `${environment.apiBaseUrl}/api/vaxtrack/v1/hospital`;
 
 @Injectable({ providedIn: 'root' })
 export class HospitalService {

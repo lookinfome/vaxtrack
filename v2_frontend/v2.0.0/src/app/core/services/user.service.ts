@@ -8,8 +8,9 @@ import {
   UpdateEmailRequest, UpdateEmailResponse,
   ChangePasswordRequest, ChangePasswordResponse
 } from '../models/user.model';
+import { environment } from '../../../environments/environment';
 
-const BASE = '/api/vaxtrack/v1/user';
+const BASE = `${environment.apiBaseUrl}/api/vaxtrack/v1/user`;
 
 @Injectable({ providedIn: 'root' })
 export class UserService {

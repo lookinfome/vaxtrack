@@ -103,12 +103,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 
-// Add CORS if needed
+// Add CORS — origins come from config (appsettings "Cors:AllowedOrigins", overridable in Azure
+// via the Cors__AllowedOrigins__0, Cors__AllowedOrigins__1... App Service settings) rather than
+// AllowAnyOrigin, since bearer tokens don't need the wildcard and a portfolio repo reviewed by
+// other engineers shouldn't ship with open CORS.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:4200"];
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policyBuilder =>
+    options.AddPolicy("AllowConfiguredOrigins", policyBuilder =>
     {
-        policyBuilder.AllowAnyOrigin()
+        policyBuilder.WithOrigins(allowedOrigins)
                      .AllowAnyMethod()
                      .AllowAnyHeader();
     });
@@ -163,7 +169,7 @@ app.UseStaticFiles(new StaticFileOptions
         ctx.Context.Response.Headers.CacheControl = "no-cache";
     }
 });
-app.UseCors("AllowAll");
+app.UseCors("AllowConfiguredOrigins");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

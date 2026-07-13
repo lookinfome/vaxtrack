@@ -8,8 +8,9 @@ import {
   RequestAccountReactivationRequest
 } from '../models/auth.model';
 import { RoleMappingService } from './role-mapping.service';
+import { environment } from '../../../environments/environment';
 
-const BASE = '/api/vaxtrack/v1/auth';
+const BASE = `${environment.apiBaseUrl}/api/vaxtrack/v1/auth`;
 const TOKEN_KEY = 'vaxtrack_token';
 const USER_KEY = 'vaxtrack_user';
 
