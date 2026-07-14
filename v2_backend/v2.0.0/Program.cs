@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Vaxtrack.Interfaces;
@@ -12,9 +13,24 @@ using Vaxtrack.Repositories;
 using Vaxtrack.Services;
 using Vaxtrack.Utilities;
 
-// Configure Serilog — new log file created on every app start
+// Keep JWT claim names as short names (sub, role, jti) — without this, the default
+// JwtSecurityTokenHandler remaps "sub" → NameIdentifier URI before the principal is built,
+// breaking User.FindFirst(JwtRegisteredClaimNames.Sub) in every controller.
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+
+// Builder is created before the Serilog setup below (rather than after, as in earlier versions)
+// specifically so the logger can read ApplicationInsights:ConnectionString from configuration.
+var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog — Console + File remain as a local-dev fallback that costs nothing to keep,
+// but App Service's F1 filesystem is not guaranteed to persist file logs across a restart or
+// redeploy, so Application Insights (free 5GB/month ingestion) is the durable sink once
+// ApplicationInsights:ConnectionString is set. Falls back to Console + File only when it isn't
+// configured (e.g. local dev without an Azure Application Insights resource).
 var startupTimestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-Log.Logger = new LoggerConfiguration()
+var appInsightsConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+
+var loggerConfig = new LoggerConfiguration()
     .MinimumLevel.Debug()
     .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.Hosting.Lifetime", Serilog.Events.LogEventLevel.Information)
@@ -23,15 +39,14 @@ Log.Logger = new LoggerConfiguration()
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
     .WriteTo.File(
         path: $"Logs/vaxtrack-{startupTimestamp}.log",
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
-    .CreateLogger();
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}");
 
-// Keep JWT claim names as short names (sub, role, jti) — without this, the default
-// JwtSecurityTokenHandler remaps "sub" → NameIdentifier URI before the principal is built,
-// breaking User.FindFirst(JwtRegisteredClaimNames.Sub) in every controller.
-JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+{
+    loggerConfig = loggerConfig.WriteTo.ApplicationInsights(appInsightsConnectionString, TelemetryConverter.Traces);
+}
 
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = loggerConfig.CreateLogger();
 
 // Replace default logging with Serilog
 builder.Host.UseSerilog();

@@ -8,6 +8,8 @@ oversight of hospitals and users, with a complete audit trail on every action.
 
 **Current version:** v2.0.0 (backend: ASP.NET Core / .NET 10, frontend: Angular 20)
 
+**Live demo:** [Open the app](https://happy-coast-091f8b20f.7.azurestaticapps.net) — deployed on Azure free-tier services (Static Web Apps, App Service, Azure SQL). See [Deployment](#deployment) for the architecture and the [Deployment Runbook](Documents/v2_docs/vaxtrack%20-%20support%20documents/05-Deployment-Runbook.docx) for exactly how it was set up, including what went wrong along the way.
+
 New to the codebase? Read this file top to bottom once, then jump into
 [Documentation](#documentation) for the full specs. Everything here is scoped to
 what you need to get productive — the linked documents carry the depth.
@@ -22,6 +24,7 @@ what you need to get productive — the linked documents carry the depth.
 - [Roles & Access Model](#roles--access-model)
 - [API Overview](#api-overview)
 - [Getting Started](#getting-started)
+- [Deployment](#deployment)
 - [Documentation](#documentation)
 - [Versioning](#versioning)
 
@@ -52,9 +55,10 @@ what you need to get productive — the linked documents carry the depth.
 | Data Access    | Entity Framework Core 10 over Microsoft SQL Server          |
 | Authentication | JWT Bearer (HMAC-SHA256) with server-side revocation        |
 | Password Hash  | BCrypt.Net-Next                                             |
-| Logging        | Serilog (console + rolling file sinks)                      |
+| Logging        | Serilog — console + rolling file locally; Application Insights in production (App Service's local disk isn't durable across restarts) |
 | Frontend       | Angular 20 (standalone components) + TailwindCSS            |
 | API Docs       | ASP.NET Core OpenAPI, plus Bruno-compatible API contracts    |
+| Hosting        | Azure Static Web Apps (frontend), Azure App Service (backend), Azure SQL Database — all free-tier |
 
 If any of these are new to you (say, JWT or EF Core migrations), the
 [Technical Specification Document](#documentation) explains each one in the context
@@ -147,6 +151,10 @@ dotnet run
 The API starts at `http://localhost:5119` (see `Properties/launchSettings.json`).
 OpenAPI schema is available at `/openapi/v1.json` in Development.
 
+`ApplicationInsights:ConnectionString` in `appsettings.json` is optional locally —
+leave it blank and the backend logs to console/file only, no Azure account
+required for local development.
+
 Seed the database with a platform admin, hospital admins, and sample hospitals using
 the scripts in `Documents/v2_docs/vaxtrack - sql queries/` (`Truncate Commands.sql`
 then `Seed Data.sql`). Default seeded credentials and IDs are documented at the top
@@ -168,9 +176,24 @@ to the backend at `http://localhost:5119` (see `proxy.conf.json`).
 Log in with a seeded account (see the Seed Data script), or register a new user, then
 book a vaccination slot at one of the seeded hospitals.
 
+## Deployment
+
+VaxTrack v2.0.0 is deployed entirely on Azure free-tier services:
+
+| Component | Service | Notes |
+|-----------|---------|-------|
+| Frontend  | Azure Static Web Apps (Free) | Auto-deploys on every push to `main` via GitHub Actions |
+| Backend   | Azure App Service (F1 Free, Linux, .NET 10) | Auto-deploys on every push to `main` via GitHub Actions (OIDC auth, no stored secret) |
+| Database  | Azure SQL Database (Free serverless offer) | EF Core migrations run automatically on startup |
+| Logging   | Application Insights | Free tier (5GB/month ingestion) — chosen because App Service's local log files don't survive a restart or redeploy on F1 |
+
+Both CI/CD pipelines are independent GitHub Actions workflows (`.github/workflows/`), triggered on push to `main`. Free tier means a few known trade-offs worth knowing before treating the live demo as bulletproof: App Service's F1 plan caps at 60 CPU-minutes/day (the app returns 403s platform-wide until the daily quota resets if exceeded), cold starts after idle periods are expected, and **uploaded profile pictures are not persistent** — F1's local filesystem doesn't reliably survive a restart or redeploy, and this was deliberately left unfixed rather than adding Azure Blob Storage, since Storage Accounts don't have a perpetual free tier the way SQL/App Service/Static Web Apps do and the goal here was a guaranteed $0 hosting bill.
+
+Full reasoning for every decision — why Azure over alternatives, why each free tier was accepted, and every issue hit while setting it up (with root cause and fix) — is in the [Deployment Runbook](Documents/v2_docs/vaxtrack%20-%20support%20documents/05-Deployment-Runbook.docx).
+
 ## Documentation
 
-All project documentation lives under `Documents/v2_docs/`. The four core
+All project documentation lives under `Documents/v2_docs/`. The five core
 deliverables — pick based on what you're trying to do:
 
 | Document | Use it to | Audience |
@@ -179,6 +202,7 @@ deliverables — pick based on what you're trying to do:
 | [Technical Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/02-Technical-Specification-Document.docx) | Understand *how* it's built — architecture, HLD/LLD, every module's frontend + backend implementation detail | Developers (any experience level), QA, tech leads |
 | [Test Case Sheet](Documents/v2_docs/vaxtrack%20-%20support%20documents/VaxTrack_Test_Case_Sheet.xlsx) | Look up or execute QA test cases across every module and feature | QA, developers, tech/team leads |
 | [Project Development Review Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/04-Project-Development-Review-Document.docx) | Prep for or run a deep architecture/design review — structured Q&A on every part of the build | Tech leads, project delivery managers, senior developers |
+| [Deployment Runbook](Documents/v2_docs/vaxtrack%20-%20support%20documents/05-Deployment-Runbook.docx) | Understand *how and why* it's hosted the way it is — Azure setup steps, decisions, and every issue hit along the way | Interviewers, tech leads, anyone reproducing the deployment |
 
 Other reference material:
 
