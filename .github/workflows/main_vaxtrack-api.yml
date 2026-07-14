@@ -24,9 +24,11 @@ jobs:
           dotnet-version: '10.x'
 
       - name: Build with dotnet
+        working-directory: v2_backend/v2.0.0
         run: dotnet build --configuration Release
 
       - name: dotnet publish
+        working-directory: v2_backend/v2.0.0
         run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
 
       - name: Upload artifact for deployment job
