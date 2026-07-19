@@ -210,6 +210,7 @@ Other reference material:
 - **API Contracts** — `vaxtrack - api contracts/`: importable request collections per module.
 - **SQL Reference** — `vaxtrack - sql queries/`: seed data, read, and truncate scripts.
 - **Daily Progress** — `vaxtrack - daily progress/`: dated engineering change logs.
+- **Sample Certificate** — [VaxTrack-Certificate-Book_62fa65e5-5cbe-45ab-ab12-7b18e984ab4b-17-7a.pdf](Documents/v2_docs/VaxTrack-Certificate-Book_62fa65e5-5cbe-45ab-ab12-7b18e984ab4b-17-7a.pdf): a downloaded sample of the vaccination completion certificate, added on `main`.
 - **Build Journey Presentations** — visual, slide-form walkthroughs of how each version was built:
   - [VaxTrack V1 — Build Journey](Documents/v1_docs/Vax%20Track%20V1%20-%20Build-Journey.pptx)
   - [VaxTrack V2 — Build Journey](Documents/v2_docs/vaxtrack%20-%20presentations/Vax%20Track%20V2%20-%20Build%20Journey.pptx)
