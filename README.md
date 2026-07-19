@@ -193,7 +193,7 @@ Full reasoning for every decision — why Azure over alternatives, why each free
 
 ## Documentation
 
-All project documentation lives under `Documents/v2_docs/`. The five core
+All project documentation lives under `Documents/v2_docs/`. The six core
 deliverables — pick based on what you're trying to do:
 
 | Document | Use it to | Audience |
@@ -202,7 +202,8 @@ deliverables — pick based on what you're trying to do:
 | [Technical Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/02-Technical-Specification-Document.docx) | Understand *how* it's built — architecture, HLD/LLD, every module's frontend + backend implementation detail | Developers (any experience level), QA, tech leads |
 | [Test Case Sheet](Documents/v2_docs/vaxtrack%20-%20support%20documents/VaxTrack_Test_Case_Sheet.xlsx) | Look up or execute QA test cases across every module and feature | QA, developers, tech/team leads |
 | [Project Development Review Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/04-Project-Development-Review-Document.docx) | Prep for or run a deep architecture/design review — structured Q&A on every part of the build | Tech leads, project delivery managers, senior developers |
-| [Deployment Runbook](Documents/v2_docs/vaxtrack%20-%20support%20documents/05-Deployment-Runbook.docx) | Understand *how and why* it's hosted the way it is — Azure setup steps, decisions, and every issue hit along the way | Interviewers, tech leads, anyone reproducing the deployment |
+| [Deployment Runbook](Documents/v2_docs/vaxtrack%20-%20support%20documents/05-Deployment-Runbook.docx) | Understand *how and why* it's hosted the way it is — Azure setup steps, decisions, every issue hit along the way, and open security/hardening items (Sections 9 & 11) | Interviewers, tech leads, anyone reproducing the deployment |
+| [Interview Deep-Dive — JWT/Session/QR](Documents/v2_docs/vaxtrack%20-%20support%20documents/06-Interview-Deep-Dive-JWT-Session-QR.docx) | Grind focused, code-grounded interview questions on JWT auth, session/token revocation, and QR certificate verification | Senior developers, interviewers |
 
 Other reference material:
 
