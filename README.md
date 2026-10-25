@@ -8,7 +8,7 @@ oversight of hospitals and users, with a complete audit trail on every action.
 
 **Current version:** v2.0.0 (backend: ASP.NET Core / .NET 10, frontend: Angular 20)
 
-**Live demo:** [Open the app](https://happy-coast-091f8b20f.7.azurestaticapps.net) — deployed on Azure free-tier services (Static Web Apps, App Service, Azure SQL). See [Deployment](#deployment) for the architecture and the [Deployment Runbook](Documents/v2_docs/vaxtrack%20-%20support%20documents/05-Deployment-Runbook.docx) for exactly how it was set up, including what went wrong along the way.
+**Live demo:** [Open the app](https://happy-coast-091f8b20f.7.azurestaticapps.net) — deployed on Azure free-tier services (Static Web Apps, App Service, Azure SQL). See [Deployment](#deployment) for the architecture and the [Deployment Runbook](Documents/v2_docs/support-documents/05-Deployment-Runbook.docx) for exactly how it was set up, including what went wrong along the way.
 
 New to the codebase? Read this file top to bottom once, then jump into
 [Documentation](#documentation) for the full specs. Everything here is scoped to
@@ -79,12 +79,12 @@ vaxtrack/
 │       ├── core/             # Models, services, interceptors
 │       ├── features/         # Auth, booking, hospital, user, admin, support
 │       └── shared/           # Guards, shared components
-├── v1_backend/                # Earlier backend iterations (v1.0.0 – v1.3.0), archived
+├── v1_backend/               # Earlier backend iterations (v1.0.0 – v1.3.0), archived
 ├── Documents/v2_docs/
-│   ├── vaxtrack - api contracts/       # Bruno-compatible request collections, per module
-│   ├── vaxtrack - sql queries/         # Seed data, read/truncate reference scripts
-│   ├── vaxtrack - daily progress/      # Dated engineering change logs
-│   └── vaxtrack - support documents/   # Functional Spec, Technical Spec, Test Cases, Project Review
+│   ├── api-contracts/        # Bruno-compatible request collections, per module
+│   ├── sql-queries/          # Seed data, read/truncate reference scripts
+│   ├── daily-progress/       # Dated engineering change logs
+│   └── support-documents/    # Functional Spec, Technical Spec, Test Cases, Project Review
 └── README.md
 ```
 
@@ -106,7 +106,7 @@ Every role is enforced server-side, not just hidden in the UI — the same rules
 whether a request comes from the Angular app or a raw API call. Full role
 definitions, the permission matrix, and each endpoint's authorization requirement
 are in the
-[Functional Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/01-Functional-Specification-Document.docx).
+[Functional Specification Document](Documents/v2_docs/support-documents/01-Functional-Specification-Document.docx).
 
 ## API Overview
 
@@ -122,10 +122,10 @@ The API is organised into six modules, each with its own controller:
 | Notification      | `/api/vaxtrack/v1/notification`      | In-app notification delivery and read state                   |
 
 Ready-to-import request collections for every endpoint (Bruno / Open Collection
-format) live in `Documents/v2_docs/vaxtrack - api contracts/`, one folder per
+format) live in `Documents/v2_docs/api-contracts/`, one folder per
 module. Request/response payloads, status codes, and error contracts for each
 endpoint are detailed in the
-[Technical Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/02-Technical-Specification-Document.docx).
+[Technical Specification Document](Documents/v2_docs/support-documents/02-Technical-Specification-Document.docx).
 
 ## Getting Started
 
@@ -156,7 +156,7 @@ leave it blank and the backend logs to console/file only, no Azure account
 required for local development.
 
 Seed the database with a platform admin, hospital admins, and sample hospitals using
-the scripts in `Documents/v2_docs/vaxtrack - sql queries/` (`Truncate Commands.sql`
+the scripts in `Documents/v2_docs/sql-queries/` (`Truncate Commands.sql`
 then `Seed Data.sql`). Default seeded credentials and IDs are documented at the top
 of `Seed Data.sql`.
 
@@ -189,7 +189,7 @@ VaxTrack v2.0.0 is deployed entirely on Azure free-tier services:
 
 Both CI/CD pipelines are independent GitHub Actions workflows (`.github/workflows/`), triggered on push to `main`. Free tier means a few known trade-offs worth knowing before treating the live demo as bulletproof: App Service's F1 plan caps at 60 CPU-minutes/day (the app returns 403s platform-wide until the daily quota resets if exceeded), cold starts after idle periods are expected, and **uploaded profile pictures are not persistent** — F1's local filesystem doesn't reliably survive a restart or redeploy, and this was deliberately left unfixed rather than adding Azure Blob Storage, since Storage Accounts don't have a perpetual free tier the way SQL/App Service/Static Web Apps do and the goal here was a guaranteed $0 hosting bill.
 
-Full reasoning for every decision — why Azure over alternatives, why each free tier was accepted, and every issue hit while setting it up (with root cause and fix) — is in the [Deployment Runbook](Documents/v2_docs/vaxtrack%20-%20support%20documents/05-Deployment-Runbook.docx).
+Full reasoning for every decision — why Azure over alternatives, why each free tier was accepted, and every issue hit while setting it up (with root cause and fix) — is in the [Deployment Runbook](Documents/v2_docs/support-documents/05-Deployment-Runbook.docx).
 
 ## Documentation
 
@@ -198,22 +198,22 @@ deliverables — pick based on what you're trying to do:
 
 | Document | Use it to | Audience |
 |----------|-----------|----------|
-| [Functional Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/01-Functional-Specification-Document.docx) | Understand *what* the app does — business requirements, roles, workflows, permission matrix, system diagrams | Business stakeholders, all developers |
-| [Technical Specification Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/02-Technical-Specification-Document.docx) | Understand *how* it's built — architecture, HLD/LLD, every module's frontend + backend implementation detail | Developers (any experience level), QA, tech leads |
-| [Test Case Sheet](Documents/v2_docs/vaxtrack%20-%20support%20documents/VaxTrack_Test_Case_Sheet.xlsx) | Look up or execute QA test cases across every module and feature | QA, developers, tech/team leads |
-| [Project Development Review Document](Documents/v2_docs/vaxtrack%20-%20support%20documents/04-Project-Development-Review-Document.docx) | Prep for or run a deep architecture/design review — structured Q&A on every part of the build | Tech leads, project delivery managers, senior developers |
-| [Deployment Runbook](Documents/v2_docs/vaxtrack%20-%20support%20documents/05-Deployment-Runbook.docx) | Understand *how and why* it's hosted the way it is — Azure setup steps, decisions, every issue hit along the way, and open security/hardening items (Sections 9 & 11) | Interviewers, tech leads, anyone reproducing the deployment |
-| [Interview Deep-Dive — JWT/Session/QR](Documents/v2_docs/vaxtrack%20-%20support%20documents/06-Interview-Deep-Dive-JWT-Session-QR.docx) | Grind focused, code-grounded interview questions on JWT auth, session/token revocation, and QR certificate verification | Senior developers, interviewers |
+| [Functional Specification Document](Documents/v2_docs/support-documents/01-Functional-Specification-Document.docx) | Understand *what* the app does — business requirements, roles, workflows, permission matrix, system diagrams | Business stakeholders, all developers |
+| [Technical Specification Document](Documents/v2_docs/support-documents/02-Technical-Specification-Document.docx) | Understand *how* it's built — architecture, HLD/LLD, every module's frontend + backend implementation detail | Developers (any experience level), QA, tech leads |
+| [Test Case Sheet](Documents/v2_docs/support-documents/VaxTrack_Test_Case_Sheet.xlsx) | Look up or execute QA test cases across every module and feature | QA, developers, tech/team leads |
+| [Project Development Review Document](Documents/v2_docs/support-documents/04-Project-Development-Review-Document.docx) | Prep for or run a deep architecture/design review — structured Q&A on every part of the build | Tech leads, project delivery managers, senior developers |
+| [Deployment Runbook](Documents/v2_docs/support-documents/05-Deployment-Runbook.docx) | Understand *how and why* it's hosted the way it is — Azure setup steps, decisions, every issue hit along the way, and open security/hardening items (Sections 9 & 11) | Interviewers, tech leads, anyone reproducing the deployment |
+| [Interview Deep-Dive — JWT/Session/QR](Documents/v2_docs/support-documents/06-Interview-Deep-Dive-JWT-Session-QR.docx) | Grind focused, code-grounded interview questions on JWT auth, session/token revocation, and QR certificate verification | Senior developers, interviewers |
 
 Other reference material:
 
-- **API Contracts** — `vaxtrack - api contracts/`: importable request collections per module.
-- **SQL Reference** — `vaxtrack - sql queries/`: seed data, read, and truncate scripts.
-- **Daily Progress** — `vaxtrack - daily progress/`: dated engineering change logs.
+- **API Contracts** — `api-contracts/`: importable request collections per module.
+- **SQL Reference** — `sql-queries/`: seed data, read, and truncate scripts.
+- **Daily Progress** — `daily-progress/`: dated engineering change logs.
 - **Sample Certificate** — [VaxTrack-Certificate-Book_62fa65e5-5cbe-45ab-ab12-7b18e984ab4b-17-7a.pdf](Documents/v2_docs/VaxTrack-Certificate-Book_62fa65e5-5cbe-45ab-ab12-7b18e984ab4b-17-7a.pdf): a downloaded sample of the vaccination completion certificate, added on `main`.
 - **Build Journey Presentations** — visual, slide-form walkthroughs of how each version was built:
   - [VaxTrack V1 — Build Journey](Documents/v1_docs/Vax%20Track%20V1%20-%20Build-Journey.pptx)
-  - [VaxTrack V2 — Build Journey](Documents/v2_docs/vaxtrack%20-%20presentations/Vax%20Track%20V2%20-%20Build%20Journey.pptx)
+  - [VaxTrack V2 — Build Journey](Documents/v2_docs/presentations/Vax%20Track%20V2%20-%20Build%20Journey.pptx)
 
 ## Versioning
 
